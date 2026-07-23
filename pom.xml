@@ -30,6 +30,7 @@
         <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
         <mybatis-plus.version>3.5.17</mybatis-plus.version>
         <sa-token.version>1.45.0</sa-token.version>
+        <archunit.version>1.4.2</archunit.version>
 
         <maven-compiler-plugin.version>3.14.1</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.4</maven-surefire-plugin.version>
@@ -61,6 +62,16 @@
                 <version>${spring-cloud-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit</artifactId>
+                <version>${archunit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit-junit5</artifactId>
+                <version>${archunit.version}</version>
             </dependency>
 
             <dependency>
@@ -187,6 +198,13 @@
                                 <banDynamicVersions>
                                     <allowSnapshots>true</allowSnapshots>
                                 </banDynamicVersions>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>com.shaopc.worthit:worthit-*-app</exclude>
+                                    </excludes>
+                                    <searchTransitive>true</searchTransitive>
+                                    <message>Application modules must not depend on other application modules.</message>
+                                </bannedDependencies>
                             </rules>
                         </configuration>
                     </execution>
