@@ -1,7 +1,7 @@
 # WorthIt Reminder Client 契约设计
 
 **日期：** 2026-07-23
-**状态：** 待项目负责人书面确认
+**状态：** 已确认
 **适用模块：** `worthit-reminder/worthit-reminder-client`
 
 ## 1. 目标
@@ -292,6 +292,7 @@ public record ReconcileReminderResponse(
 - `org.junit.jupiter:junit-jupiter`
 - `org.assertj:assertj-core`
 - `com.shaopc.worthit:worthit-common-test`
+- `com.tngtech.archunit:archunit-junit5`
 
 测试中 Hibernate Validator 使用 `ParameterMessageInterpolator`，不为测试额外引入表达式语言运行时。
 
