@@ -19,6 +19,7 @@ Phase 0 只包含：
 
 - `worthit-common-core`
 - `worthit-common-web`
+- `worthit-common-webmvc-starter`
 - `worthit-common-security`
 - `worthit-common-data`
 - `worthit-common-http`
@@ -30,6 +31,8 @@ Common 不依赖业务 App、业务 Client、业务 DTO 或具体服务实现：
 
 - `common-core` 不放用户、物品、订阅、想买或提醒状态。
 - `common-web` 不放具体 Controller、Gateway Filter 或页面模型。
+- `common-webmvc-starter` 只装配三个 Servlet/MVC App 共用的 Web、校验和
+  OpenAPI 运行基线，不放业务 Controller、业务错误码或服务专属安全策略。
 - `common-security` 不放用户表、微信协议或某个运行模型的过滤器。
 - `common-data` 不放跨服务共享 DO、Mapper 或 Repository。
 - `common-http` 不放 Reminder/Tracking 业务契约。
@@ -62,7 +65,12 @@ Client 禁止包含：
 
 - Gateway 使用 Spring Cloud Gateway 和 WebFlux。
 - Auth、Tracking、Reminder 使用 Spring MVC/Servlet，并可使用 JDBC、MyBatis 和本地事务。
-- WebFlux 与 Servlet/MVC 的 Filter、Starter、异常适配和安全配置留在各自 App。
+- Auth、Tracking、Reminder 通过 `common-webmvc-starter` 复用 Spring MVC、
+  Bean Validation 和 OpenAPI 装配。
+- 具体 Controller、Servlet Filter、异常适配和服务专属安全配置仍留在各自 App。
+- Gateway、Client、`common-core` 和中立的 `common-web` 禁止依赖
+  `common-webmvc-starter`。
+- Gateway 的 WebFlux Filter、异常适配和安全配置留在 Gateway。
 - 不把两个运行模型的实现细节塞进 Common，也不在业务服务中引入 WebFlux 作为默认编程模型。
 
 ## 服务内分层
@@ -120,6 +128,15 @@ Client 禁止包含：
 - 内部调用使用 Same-Token 和网络隔离；调用链透传可信 TraceId。
 - Outbox 到 reconcile 的幂等头使用 `X-Idempotency-Key`，值为原 `eventId`。
 - `X-Caller-Service` 只用于日志和审计，不作为单独的强身份凭证。
+
+### OpenAPI
+
+- Auth、Tracking、Reminder 的 OpenAPI 固定分为 `public` 和 `internal` 两组。
+- `public` 只匹配 `/api/**`，`internal` 只匹配 `/internal/**`，两组禁止串入。
+- 默认全量 `/v3/api-docs` 关闭，避免绕过分组暴露混合接口。
+- Gateway 不配置 `/v3/api-docs/**` 或 `/swagger-ui/**` 的公网路由。
+- 默认和生产环境关闭 API Docs 与 Swagger UI；`local`、`dev`、`test`
+  环境才显式开启。
 
 ### TraceId
 

@@ -10,4 +10,10 @@
     </parent>
     <artifactId>worthit-auth-app</artifactId>
     <name>WorthIt Auth App</name>
+    <dependencies>
+        <dependency>
+            <groupId>com.shaopc.worthit</groupId>
+            <artifactId>worthit-common-webmvc-starter</artifactId>
+        </dependency>
+    </dependencies>
 </project>

@@ -3,6 +3,7 @@ package com.shaopc.worthit.common.web.response;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.shaopc.worthit.common.core.error.ErrorCode;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 import java.util.Objects;
@@ -22,13 +23,16 @@ import java.util.Objects;
  * @param <T>     响应数据类型
  */
 @JsonPropertyOrder({"success", "code", "message", "data", "traceId", "details"})
+@Schema(description = "统一 API 响应信封")
 public record ApiResponse<T>(
-        boolean success,
-        String code,
-        String message,
-        T data,
-        String traceId,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<FieldViolation> details) {
+        @Schema(description = "请求是否成功") boolean success,
+        @Schema(description = "稳定机器响应码") String code,
+        @Schema(description = "中文响应消息") String message,
+        @Schema(description = "响应数据") T data,
+        @Schema(description = "可信调用链追踪标识") String traceId,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        @Schema(description = "字段校验详情")
+        List<FieldViolation> details) {
 
     /**
      * 校验响应信封的必填字段并复制校验详情。

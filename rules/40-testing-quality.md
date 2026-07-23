@@ -46,6 +46,12 @@
 - `ReconcileReminderCommand` 必须包含 `operationType` 和 `schemaVersion`，不得包含 `cause`、`ResolutionCause`、`correction` 或 `displayName`。
 - Client 序列化契约与服务端实现必须一致；不能仅分别测试两端能编译。
 - Mock 下游成功只证明调用方逻辑，不等于真实 HTTP、服务发现、鉴权或序列化链路通过。
+- `/v3/api-docs/public` 只能包含 `/api/**`，不得包含 `/internal/**` 或框架端点。
+- `/v3/api-docs/internal` 只能包含 `/internal/**`，不得包含 `/api/**` 或框架端点。
+- 默认 `/v3/api-docs` 必须不可访问；默认和生产配置必须关闭 API Docs 与
+  Swagger UI，`local`、`dev`、`test` 开启行为必须有配置或容器测试。
+- OpenAPI 测试必须验证统一响应和字段校验 Schema 能生成，不能只验证
+  Swagger UI 页面存在。
 
 ## 架构测试
 
@@ -58,6 +64,12 @@ Phase 0 至少使用 ArchUnit 或等价可执行检查覆盖：
 - Persistence DO 和 Mapper 不泄漏到 Domain、Client 或公网 Response。
 
 依赖树审阅用于补充 ArchUnit，确认没有通过传递依赖绕过边界。
+
+Web 运行栈依赖树还必须确认：
+
+- `reminder-client` 不含 Spring Boot Starter、springdoc、Servlet 或 Tomcat；
+- Gateway 不含 `common-webmvc-starter`、`spring-webmvc` 或 Tomcat；
+- `common-web` 不含 MVC、WebFlux、Servlet、Tomcat 或 springdoc runtime。
 
 ## 技术门禁
 

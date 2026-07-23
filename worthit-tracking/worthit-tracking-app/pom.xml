@@ -13,6 +13,10 @@
     <dependencies>
         <dependency>
             <groupId>com.shaopc.worthit</groupId>
+            <artifactId>worthit-common-webmvc-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.shaopc.worthit</groupId>
             <artifactId>worthit-reminder-client</artifactId>
         </dependency>
     </dependencies>

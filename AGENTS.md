@@ -14,6 +14,11 @@
 
 涉及需求实现、接口契约、数据库或验收时，不得只读规则摘要，必须打开文档索引登记的对应终稿。
 
+涉及 Web API、Swagger/OpenAPI 或 Web 运行时依赖时，必须同时核对
+`rules/10-architecture.md`、`rules/20-java-code-style.md`、
+`rules/30-spring-maven.md` 和 `rules/40-testing-quality.md`，并执行公网/内部
+文档分组及 Servlet/WebFlux 依赖隔离门禁。
+
 ## 规则优先级
 
 1. 用户在当前任务中的明确要求。

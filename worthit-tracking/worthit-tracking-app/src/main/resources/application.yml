@@ -1,0 +1,18 @@
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+  enable-default-api-docs: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "local | dev | test"
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+  enable-default-api-docs: false

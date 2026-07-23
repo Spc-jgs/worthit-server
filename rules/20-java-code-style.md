@@ -93,6 +93,19 @@ com.shaopc.worthit.tracking.item.infrastructure
 - 不直接调用 Mapper，不书写 SQL，不计算业务状态，不手动控制事务。
 - 不信任客户端传入的 userId、TraceId、Same-Token 或仅服务端生成的 `operationType`。
 
+### Swagger / OpenAPI
+
+- Controller 使用 `@Tag` 说明接口域，公开接口方法使用 `@Operation`
+  说明用途；请求头、路径参数和容易误解的查询参数按需要使用 `@Parameter`。
+- 对业务有意义的 HTTP 状态和统一错误响应使用 `@ApiResponses`，不得虚构
+  尚未实现的成功路径、字段、状态或错误码。
+- 公网 Request/Response、内部 Client DTO 和公共响应模型使用 `@Schema`
+  说明业务含义、单位、格式、可空性和稳定机器值。
+- OpenAPI 的人类可读描述使用中文；路径、字段、请求头、错误码和枚举等
+  机器契约保持权威文档冻结的英文值。
+- `@Schema` 不替代 Bean Validation，Swagger 注释不替代源码 Javadoc。
+- 示例不得包含真实手机号、Token、Secret、OpenId 或其他敏感信息。
+
 ### Application Service
 
 - 负责编排用例、权限归属、幂等入口、事务和 Outbox。

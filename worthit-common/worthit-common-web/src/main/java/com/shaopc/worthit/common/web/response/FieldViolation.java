@@ -1,12 +1,17 @@
 package com.shaopc.worthit.common.web.response;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * 描述单个请求字段的校验问题。
  *
  * @param field 违反约束的字段名
  * @param issue 中文问题描述
  */
-public record FieldViolation(String field, String issue) {
+@Schema(description = "请求字段校验详情")
+public record FieldViolation(
+        @Schema(description = "违反约束的字段名") String field,
+        @Schema(description = "中文问题描述") String issue) {
 
     /**
      * 校验字段名和问题描述均不为空。
