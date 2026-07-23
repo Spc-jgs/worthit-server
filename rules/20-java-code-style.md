@@ -47,7 +47,17 @@ com.shaopc.worthit.tracking.item.infrastructure
 - 方法保持单一抽象层次。复杂条件提取为有业务名称的判断，不堆叠难以解释的布尔表达式。
 - 优先不可变对象。稳定的只读契约可在 Jackson、Bean Validation 和框架兼容时使用 `record`。
 - Entity、MyBatis DO 或需要受控状态变更的聚合不因追求简短而机械改成 `record`。
-- 不新增仅为消除样板代码的依赖；引入 Lombok 等工具必须先按依赖准入规则确认。
+
+## Lombok
+
+- 新增普通 Java 类时使用 Lombok 消除无业务含义的样板代码，不手写可由稳定 Lombok 注解生成的 getter、setter、构造器、builder 或日志字段。
+- Spring Bean 优先使用 `final` 依赖字段配合 `@RequiredArgsConstructor` 实现构造器注入；需要日志字段时使用 `@Slf4j`。
+- 按实际职责选用 `@Getter`、`@Setter`、`@RequiredArgsConstructor`、`@Builder`、`@Value`、`@EqualsAndHashCode` 和 `@ToString`，不得为了省事默认给所有类型添加 `@Data`。
+- `@Data` 会同时生成 setter、`equals/hashCode` 和 `toString`，不得用于聚合根、Entity、MyBatis DO、安全边界 DTO 或包含敏感字段的类型，除非逐项确认生成行为符合该类型语义。
+- 已由 Java `record` 提供访问器、构造器、`equals/hashCode` 和 `toString` 的纯契约，不添加重复的 Lombok 样板注解；枚举、接口和注解类型同样不得添加无效果的 Lombok 注解。
+- `@Builder` 只用于参数较多且能提升调用可读性的构造边界，不得绕过领域不变量、Bean Validation 或受控状态转换。
+- Lombok 只生成结构性代码。主要方法、重要方法、通用类型、契约字段、常量和枚举仍须遵守本文件的注释与 Javadoc 规则。
+- 首次在模块中真实使用 Lombok 时，才在该模块声明依赖；版本继续由根 POM 或现行 BOM 统一管理，不在子模块单独写版本。
 
 ## 常量与枚举
 
