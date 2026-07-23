@@ -1,0 +1,117 @@
+# Java 代码规范
+
+## 语言与包命名
+
+- 使用 Java 17 已正式支持的语言能力，不使用预览特性。
+- 根包名固定为 `com.shaopc.worthit`。
+- 包名全小写，按服务、业务子域和层次组织，例如：
+
+```text
+com.shaopc.worthit.tracking.item.interfaces
+com.shaopc.worthit.tracking.item.application
+com.shaopc.worthit.tracking.item.domain
+com.shaopc.worthit.tracking.item.infrastructure
+```
+
+- 不建立 `util`、`misc`、`manager`、`common` 等含义不清的大杂烩包。
+- 类型使用 PascalCase，方法、参数和字段使用 camelCase，常量使用 UPPER_SNAKE_CASE。
+- 布尔值使用能直接表达真假语义的名称，例如 `reminderEnabled`、`deleted`；避免 `flag`、`statusFlag`。
+- 接口不添加无意义的 `I` 前缀。实现类型按职责命名，例如 `MybatisItemRepository`、`WechatLoginGateway`，不默认使用 `Impl`。
+
+## 类型角色与后缀
+
+同一概念在不同边界使用不同类型，不因字段相似而混用。
+
+| 边界 | 推荐命名 | 规则 |
+| --- | --- | --- |
+| 公网入参 | `CreateItemRequest` | 只表达 HTTP 请求，不进入 Domain |
+| 公网出参 | `ItemDetailResponse` | 只表达接口契约，不暴露 DO |
+| 应用命令 | `CreateItemCommand` | 表达写用例及服务端生成语义 |
+| 应用查询 | `GetItemQuery` | 表达读用例条件 |
+| 应用结果 | `ItemResult` | 在 Application 与 Interfaces 之间传递 |
+| 内部 Client | `ReconcileReminderCommand` | 由 Client 所有者维护的稳定跨服务契约 |
+| 领域对象 | `Item`、`Money` | 承载业务不变量，不带 Web/持久化注解 |
+| 持久化对象 | `ItemDO` | 只在 Infrastructure 使用并映射数据库 |
+
+- 禁止使用 `Map<String, Object>`、`JSONObject` 或裸 `Object` 代替稳定契约。
+- 公网 DTO、内部 Client DTO、Application 对象、Domain Model 和 Persistence DO 不得跨边界直接复用。
+- 不为减少类数量而复用安全边界、生命周期或所有者不同的 DTO。
+- 不把完整 Entity/DO 作为 Controller 返回值或 Client 参数。
+
+## 类与依赖
+
+- 优先构造器注入；依赖字段声明为 `private final`。
+- 禁止 Spring 字段注入。
+- 避免静态可变状态、全局 Service Locator 和隐藏的单例上下文。
+- 一个类只承担一个清晰职责；一个公开方法对应一个可描述的用例或能力。
+- 方法保持单一抽象层次。复杂条件提取为有业务名称的判断，不堆叠难以解释的布尔表达式。
+- 优先不可变对象。稳定的只读契约可在 Jackson、Bean Validation 和框架兼容时使用 `record`。
+- Entity、MyBatis DO 或需要受控状态变更的聚合不因追求简短而机械改成 `record`。
+- 不新增仅为消除样板代码的依赖；引入 Lombok 等工具必须先按依赖准入规则确认。
+
+## 空值与集合
+
+- 方法返回集合时返回空集合，不返回 `null`。
+- `Optional` 只用于可能缺失的返回值，不用于字段、方法参数、DTO 或持久化对象。
+- 外部入参使用 Bean Validation 和显式业务校验；不要依赖后续 `NullPointerException`。
+- 不使用 `null` 表示多个业务状态。使用明确枚举、值对象或结果类型。
+- 集合暴露前明确是否允许修改；领域对象优先返回不可变视图或副本。
+
+## 时间、金额、枚举与 ID
+
+- 日期使用 `LocalDate`，无时区的业务时间按契约使用 `LocalDateTime`；禁止新代码使用 `Date`、`Calendar` 或字符串承载时间。
+- 涉及时区、存储格式或跨服务时间语义时，以接口和数据库终稿为准，不自行选择系统默认时区。
+- 金额和成本使用 `BigDecimal`，构造时避免 `new BigDecimal(double)`。
+- 金额计算必须明确精度和舍入方式；不得用 `double` 或 `float` 表达货币。
+- 枚举通过终稿冻结的稳定 code 参与接口和持久化，不使用 ordinal。
+- Snowflake/`long` ID 在 Java 内部保持强类型语义；跨端 JSON 是否使用字符串严格遵循接口终稿，避免 JavaScript 精度丢失。
+- `schemaVersion`、`sourceVersion` 和实体乐观锁 `version` 是不同概念，禁止混用。
+
+## Controller 与应用服务
+
+### Controller
+
+- 只负责协议解析、Bean Validation、身份上下文、调用应用服务和响应转换。
+- 不直接调用 Mapper，不书写 SQL，不计算业务状态，不手动控制事务。
+- 不信任客户端传入的 userId、TraceId、Same-Token 或仅服务端生成的 `operationType`。
+
+### Application Service
+
+- 负责编排用例、权限归属、幂等入口、事务和 Outbox。
+- 在边界处完成 Request/Client DTO、Command/Query、Domain Model、DO 之间的转换。
+- 明确事务开始和结束，不把远程调用当成本地事务的一部分。
+- 状态转换调用 Domain 行为，不在多个 Application Service 中复制同一业务规则。
+
+## 异常与结果
+
+- 业务失败使用稳定业务错误码和明确异常类型，不用异常消息承担机器契约。
+- 不捕获 `Exception` 后忽略、返回假成功或只打印日志。
+- 只在能够恢复、转换边界语义或补充必要上下文时捕获异常。
+- 异常转换保留原始 cause；对外响应不得泄露堆栈、SQL、内部类名或敏感配置。
+- 资源归属错误按接口终稿使用 404 防枚举，不擅自改成 403。
+- 不用 `boolean` 同时表达成功、失败、幂等、冲突等多个结果；需要时使用具名结果类型。
+
+## 日志
+
+- 使用参数化日志模板，不使用字符串拼接构造日志。
+- 记录能定位问题的业务 ID、事件 ID、目标服务、稳定状态和可信 TraceId。
+- 不记录 Token、Secret、密码、完整 openid、手机号、身份证、完整请求体或其他敏感信息。
+- 正常业务拒绝不滥用 ERROR；不可恢复系统故障、契约冲突和数据不变量破坏必须有可观测证据。
+- 同一异常由最了解处理结果的边界记录一次，避免每层重复打印堆栈。
+
+## 注释与 Javadoc
+
+- 注释解释“为什么”、业务不变量、并发假设和非直观取舍，不逐行复述代码。
+- 名称能够表达意图时，不用注释弥补模糊命名。
+- 公共内部 Client 接口、契约字段和稳定错误码写必要 Javadoc。
+- 并发、幂等、摘要计算和版本比较代码必须注明对应终稿章节或门禁编号。
+- 删除或改变行为时同步更新注释；过时注释视为缺陷。
+
+## 禁止事项
+
+- 魔法数字、魔法字符串和散落的状态 code；
+- 超大通用 DTO、双向对象图和跨层循环依赖；
+- 通过反射、静态工具或 ThreadLocal 绕过正常依赖边界；
+- 在 Domain 中依赖 Spring Web、MyBatis、Client 或数据库实现；
+- 为未来扩展预建没有真实使用者的抽象和模块；
+- 以“代码更少”为理由牺牲契约所有权、安全边界或可测试性。
