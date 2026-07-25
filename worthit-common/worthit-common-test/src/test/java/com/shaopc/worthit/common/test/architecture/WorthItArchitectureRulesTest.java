@@ -2,9 +2,14 @@ package com.shaopc.worthit.common.test.architecture;
 
 import com.shaopc.worthit.common.fixture.CommonDependsOnTrackingFixture;
 import com.shaopc.worthit.common.fixture.ValidCommonFixture;
+import com.shaopc.worthit.common.web.fixture.CommonWebDependsOnWebFluxFixture;
+import com.shaopc.worthit.common.web.fixture.ValidCommonWebRuntimeNeutralFixture;
 import com.shaopc.worthit.reminder.app.fixture.ReminderAppFixture;
 import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnAppFixture;
+import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnBootFixture;
 import com.shaopc.worthit.reminder.client.fixture.ValidClientFixture;
+import com.shaopc.worthit.gateway.fixture.GatewayDependsOnServletFixture;
+import com.shaopc.worthit.gateway.fixture.ValidGatewayFixture;
 import com.shaopc.worthit.tracking.fixture.TrackingFixture;
 import com.shaopc.worthit.tracking.item.domain.fixture.DomainDependsOnInfrastructureFixture;
 import com.shaopc.worthit.tracking.item.domain.fixture.ValidDomainFixture;
@@ -82,5 +87,71 @@ class WorthItArchitectureRulesTest {
                         () -> WorthItArchitectureRules.DOMAIN_MUST_NOT_DEPEND_ON_OUTER_LAYERS
                                 .check(classes))
                 .isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    void gatewayRuntimeRuleAcceptsReactiveGatewayCode() {
+        JavaClasses classes = importer.importClasses(ValidGatewayFixture.class);
+
+        assertThatCode(
+                        () -> WorthItArchitectureRules.GATEWAY_MUST_STAY_REACTIVE
+                                .check(classes))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void gatewayRuntimeRuleRejectsServletDependency() {
+        JavaClasses classes = importer.importClasses(
+                GatewayDependsOnServletFixture.class);
+
+        assertThatThrownBy(
+                        () -> WorthItArchitectureRules.GATEWAY_MUST_STAY_REACTIVE
+                                .check(classes))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("jakarta.servlet");
+    }
+
+    @Test
+    void clientRuntimeRuleAcceptsContractOnlyClientCode() {
+        JavaClasses classes = importer.importClasses(ValidClientFixture.class);
+
+        assertThatCode(
+                        () -> WorthItArchitectureRules.CLIENT_MUST_STAY_CONTRACT_ONLY
+                                .check(classes))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void clientRuntimeRuleRejectsBootDependency() {
+        JavaClasses classes = importer.importClasses(ClientDependsOnBootFixture.class);
+
+        assertThatThrownBy(
+                        () -> WorthItArchitectureRules.CLIENT_MUST_STAY_CONTRACT_ONLY
+                                .check(classes))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("org.springframework.boot");
+    }
+
+    @Test
+    void commonWebRuntimeRuleAllowsSwaggerContractAnnotations() {
+        JavaClasses classes = importer.importClasses(
+                ValidCommonWebRuntimeNeutralFixture.class);
+
+        assertThatCode(
+                        () -> WorthItArchitectureRules.COMMON_WEB_MUST_STAY_RUNTIME_NEUTRAL
+                                .check(classes))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void commonWebRuntimeRuleRejectsWebFluxDependency() {
+        JavaClasses classes = importer.importClasses(
+                CommonWebDependsOnWebFluxFixture.class);
+
+        assertThatThrownBy(
+                        () -> WorthItArchitectureRules.COMMON_WEB_MUST_STAY_RUNTIME_NEUTRAL
+                                .check(classes))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("org.springframework.web.reactive");
     }
 }

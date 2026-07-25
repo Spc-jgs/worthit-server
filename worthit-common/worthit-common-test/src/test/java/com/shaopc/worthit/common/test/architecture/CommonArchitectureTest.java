@@ -18,6 +18,10 @@ class CommonArchitectureTest {
             WorthItArchitectureRules.COMMON_MUST_NOT_DEPEND_ON_BUSINESS;
 
     @ArchTest
+    static final ArchRule commonWebMustStayRuntimeNeutral =
+            WorthItArchitectureRules.COMMON_WEB_MUST_STAY_RUNTIME_NEUTRAL;
+
+    @ArchTest
     static void importsProductionCommonClasses(JavaClasses classes) {
         assertThat(classes).isNotEmpty();
     }
