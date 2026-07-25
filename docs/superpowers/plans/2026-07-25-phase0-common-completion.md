@@ -43,7 +43,7 @@
 - Produces: `WorthItOpenApiGroupsAutoConfiguration`
 - Preserves: `public=/api/**`, `internal=/internal/**`
 
-- [ ] **Step 1: 验证模块回归**
+- [x] **Step 1: 验证模块回归**
 
 Run:
 
@@ -53,19 +53,20 @@ mvn -pl worthit-common/worthit-common-webmvc-starter -am test
 
 Expected: PASS，Core 12、Web 8、Starter 9，共 29 个测试。
 
-- [ ] **Step 2: 验证旧类名无残留**
+- [x] **Step 2: 验证旧类名无残留**
 
 Run:
 
 ```bash
 rg -n "WorthItOpenApiAutoConfiguration" \
-  docs/superpowers \
+  docs/superpowers/plans/2026-07-23-openapi-webmvc-starter.md \
+  docs/superpowers/specs/2026-07-23-openapi-webmvc-starter-design.md \
   worthit-common/worthit-common-webmvc-starter
 ```
 
 Expected: 无输出，退出码 1。
 
-- [ ] **Step 3: 精确提交**
+- [x] **Step 3: 精确提交**
 
 ```bash
 git add -- \
@@ -96,7 +97,7 @@ git commit -m "refactor(common-webmvc-starter): 明确OpenAPI分组配置职责"
 - Produces: `String TraceIdGenerator.generate()`
 - Produces: 32 位小写十六进制、不含连字符的 TraceId
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```java
 class UuidTraceIdGeneratorTest {
@@ -118,7 +119,7 @@ class UuidTraceIdGeneratorTest {
 }
 ```
 
-- [ ] **Step 2: 确认 RED**
+- [x] **Step 2: 确认 RED**
 
 Run:
 
@@ -130,7 +131,7 @@ mvn -pl worthit-common/worthit-common-core -am \
 
 Expected: FAIL，`TraceIdGenerator` 和 `UuidTraceIdGenerator` 不存在。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 ```java
 @FunctionalInterface
@@ -150,7 +151,7 @@ public final class UuidTraceIdGenerator implements TraceIdGenerator {
 }
 ```
 
-- [ ] **Step 4: 验证 GREEN**
+- [x] **Step 4: 验证 GREEN**
 
 Run:
 
@@ -160,7 +161,7 @@ mvn -pl worthit-common/worthit-common-core -am test
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add -- worthit-common/worthit-common-core
@@ -193,7 +194,7 @@ git commit -m "feat(common-core): 增加可信链路标识生成能力"
 - Produces: `String SameTokenProvider.currentToken()`
 - Produces: `void SameTokenVerifier.verify(String token)`
 
-- [ ] **Step 1: 写失败契约测试**
+- [x] **Step 1: 写失败契约测试**
 
 ```java
 @Test
@@ -224,7 +225,7 @@ void rejectsNonPositiveUserId() {
 }
 ```
 
-- [ ] **Step 2: 确认 RED**
+- [x] **Step 2: 确认 RED**
 
 Run:
 
@@ -234,7 +235,7 @@ mvn -pl worthit-common/worthit-common-security -am test
 
 Expected: FAIL，因为模块尚无源码和依赖。
 
-- [ ] **Step 3: 增加受管依赖**
+- [x] **Step 3: 增加受管依赖**
 
 根 POM：
 
@@ -266,7 +267,7 @@ Expected: FAIL，因为模块尚无源码和依赖。
 
 并增加 JUnit 5 与 AssertJ test scope。
 
-- [ ] **Step 4: 实现稳定契约**
+- [x] **Step 4: 实现稳定契约**
 
 `SecurityErrorCode` 完整行为：
 
@@ -341,7 +342,7 @@ public final class SaTokenSameTokenService
 }
 ```
 
-- [ ] **Step 5: 验证 GREEN 与依赖隔离**
+- [x] **Step 5: 验证 GREEN 与依赖隔离**
 
 Run:
 
@@ -352,7 +353,7 @@ mvn -pl worthit-common/worthit-common-security dependency:tree -Dscope=compile
 
 Expected: PASS；依赖树不含 MVC、WebFlux、Servlet 或 Tomcat。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add -- pom.xml worthit-common/worthit-common-security
@@ -381,7 +382,7 @@ git commit -m "feat(common-security): 建立可信来源安全契约"
 - Produces: audit fill using `Clock` and `CurrentAuditor`
 - Produces: active `0`, deleted `1`
 
-- [ ] **Step 1: 写失败配置测试**
+- [x] **Step 1: 写失败配置测试**
 
 ```java
 @Test
@@ -399,14 +400,14 @@ void registersMysqlPaginationBeforeOptimisticLocking() {
 }
 ```
 
-- [ ] **Step 2: 写失败审计测试**
+- [x] **Step 2: 写失败审计测试**
 
 测试实体声明 `createTime/updateTime/createBy/updateBy` 并通过 MyBatis
 `SystemMetaObject.forObject` 创建 MetaObject。固定 `Clock` 为
 `2026-07-25T08:00:00Z`，当前用户为 `1001`，断言 insert/update 填充值；
 当前用户为空时 actor 字段保持 null。
 
-- [ ] **Step 3: 确认 RED**
+- [x] **Step 3: 确认 RED**
 
 Run:
 
@@ -416,7 +417,7 @@ mvn -pl worthit-common/worthit-common-data -am test
 
 Expected: FAIL，因为配置、审计类型和插件依赖不存在。
 
-- [ ] **Step 4: 增加依赖**
+- [x] **Step 4: 增加依赖**
 
 根 POM 管理：
 
@@ -435,7 +436,7 @@ Expected: FAIL，因为配置、审计类型和插件依赖不存在。
 
 模块依赖上述两个 Artifact、Lombok、JUnit 5、AssertJ。
 
-- [ ] **Step 5: 最小实现**
+- [x] **Step 5: 最小实现**
 
 ```java
 @Configuration(proxyBeanMethods = false)
@@ -468,7 +469,7 @@ strictUpdateFill(metaObject, "updateTime", LocalDateTime.class, now);
 
 当前用户存在时对 `createBy/updateBy` 使用 `Long.class` 填充；不存在时不填充。
 
-- [ ] **Step 6: 验证 GREEN**
+- [x] **Step 6: 验证 GREEN**
 
 Run:
 
@@ -479,7 +480,7 @@ mvn -pl worthit-common/worthit-common-data dependency:tree -Dscope=compile
 
 Expected: PASS；分页类来自 `mybatis-plus-jsqlparser`，无共享 DO/Mapper。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add -- pom.xml worthit-common/worthit-common-data
@@ -508,7 +509,7 @@ git commit -m "feat(common-data): 增加MyBatis基础配置与审计填充"
 - Produces: three trusted headers
 - Produces: bounded unified-envelope error decoding
 
-- [ ] **Step 1: 写失败值对象测试**
+- [x] **Step 1: 写失败值对象测试**
 
 ```java
 @Test
@@ -520,7 +521,7 @@ void rejectsZeroOrNegativeTimeouts() {
 }
 ```
 
-- [ ] **Step 2: 写失败拦截器测试**
+- [x] **Step 2: 写失败拦截器测试**
 
 使用 `MockClientHttpRequest` 和捕获型 `ClientHttpRequestExecution`，断言旧值被覆盖：
 
@@ -530,7 +531,7 @@ assertThat(headers.getFirst(SecurityHeaderNames.CALLER_SERVICE)).isEqualTo("wort
 assertThat(headers.getFirst(SecurityHeaderNames.TRACE_ID)).isEqualTo("trace-test");
 ```
 
-- [ ] **Step 3: 写失败错误解码测试**
+- [x] **Step 3: 写失败错误解码测试**
 
 构造 409 响应：
 
@@ -548,7 +549,7 @@ assertThat(headers.getFirst(SecurityHeaderNames.TRACE_ID)).isEqualTo("trace-test
 `IDEM_CONFLICT`、`trace-remote`；HTML、空 body、超过 64 KiB 的 body
 均不进入异常消息。
 
-- [ ] **Step 4: 确认 RED**
+- [x] **Step 4: 确认 RED**
 
 Run:
 
@@ -558,7 +559,7 @@ mvn -pl worthit-common/worthit-common-http -am test
 
 Expected: FAIL，因为所有目标类型不存在。
 
-- [ ] **Step 5: 增加模块依赖**
+- [x] **Step 5: 增加模块依赖**
 
 生产依赖：
 
@@ -587,12 +588,12 @@ Expected: FAIL，因为所有目标类型不存在。
 
 测试依赖 JUnit 5、AssertJ、Spring Test。
 
-- [ ] **Step 6: 实现值对象和拦截器**
+- [x] **Step 6: 实现值对象和拦截器**
 
 `InternalRequestContext` 校验 caller service 非空；拦截器使用 `headers.set`
 覆盖三类可信头，禁止保留调用方旧值。
 
-- [ ] **Step 7: 实现安全错误解码**
+- [x] **Step 7: 实现安全错误解码**
 
 `ApiResponseErrorHandler`：
 
@@ -602,7 +603,7 @@ Expected: FAIL，因为所有目标类型不存在。
 - 缺失字段使用 `REMOTE_HTTP_ERROR` 和“远端服务请求失败”；
 - 抛出 `RemoteServiceException` 并保留 HTTP 状态。
 
-- [ ] **Step 8: 验证 GREEN**
+- [x] **Step 8: 验证 GREEN**
 
 Run:
 
@@ -635,7 +636,7 @@ Expected: PASS。
         InternalRequestContext requestContext)
 ```
 
-- [ ] **Step 1: 写失败真实 HTTP 测试**
+- [x] **Step 1: 写失败真实 HTTP 测试**
 
 使用 JDK `HttpServer` 绑定随机本机端口，定义测试 `@HttpExchange` 接口并验证：
 
@@ -646,7 +647,7 @@ Expected: PASS。
 - 409 响应转为 `RemoteServiceException`；
 - 100ms 读取超时面对 500ms 响应时失败并保留 cause。
 
-- [ ] **Step 2: 确认 RED**
+- [x] **Step 2: 确认 RED**
 
 Run:
 
@@ -658,7 +659,7 @@ mvn -pl worthit-common/worthit-common-http -am \
 
 Expected: FAIL，代理工厂不存在。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 工厂必须：
 
@@ -688,7 +689,7 @@ return HttpServiceProxyFactory
 错误处理器的 target service 从独立 `targetService` 参数传入，不得误用
 caller service；测试固定为 `worthit-reminder`。
 
-- [ ] **Step 4: 验证 GREEN**
+- [x] **Step 4: 验证 GREEN**
 
 Run:
 
@@ -698,7 +699,7 @@ mvn -pl worthit-common/worthit-common-http -am test
 
 Expected: PASS，测试使用真实随机端口，不依赖 Mock 调用次数。
 
-- [ ] **Step 5: 提交 Common HTTP**
+- [x] **Step 5: 提交 Common HTTP**
 
 ```bash
 git add -- worthit-common/worthit-common-http
@@ -724,7 +725,7 @@ git commit -m "feat(common-http): 实现内部HTTP代理与错误解码"
   - `CLIENT_MUST_STAY_CONTRACT_ONLY`
   - `COMMON_WEB_MUST_STAY_RUNTIME_NEUTRAL`
 
-- [ ] **Step 1: 先增加反例 fixture 和失败测试**
+- [x] **Step 1: 先增加反例 fixture 和失败测试**
 
 每条规则必须有：
 
@@ -732,7 +733,7 @@ git commit -m "feat(common-http): 实现内部HTTP代理与错误解码"
 - 一个直接违规 fixture；
 - 断言违规报告包含目标依赖包。
 
-- [ ] **Step 2: 确认 RED**
+- [x] **Step 2: 确认 RED**
 
 Run:
 
@@ -742,7 +743,7 @@ mvn -pl worthit-common/worthit-common-test -am test
 
 Expected: FAIL，因为规则常量不存在。
 
-- [ ] **Step 3: 实现规则**
+- [x] **Step 3: 实现规则**
 
 Gateway 禁止包：
 
@@ -778,7 +779,7 @@ org.springdoc..
 
 Swagger annotation 包不在禁止范围。
 
-- [ ] **Step 4: 验证 GREEN 并提交**
+- [x] **Step 4: 验证 GREEN 并提交**
 
 ```bash
 mvn -pl worthit-common/worthit-common-test -am test
@@ -805,7 +806,7 @@ git commit -m "test(common): 扩展运行栈架构隔离门禁"
 - Consumes: `TraceIdGenerator`, `SameTokenProvider`
 - Produces: clean trusted internal headers
 
-- [ ] **Step 1: 写失败过滤器测试**
+- [x] **Step 1: 写失败过滤器测试**
 
 用 `MockServerWebExchange` 构造含伪造五类头的请求，捕获下游 request，断言：
 
@@ -814,7 +815,7 @@ git commit -m "test(common): 扩展运行栈架构隔离门禁"
 - Same-Token 来自测试 Provider；
 - 不重建 `X-User-Id`、`X-Session-Id`、`X-Caller-Service`。
 
-- [ ] **Step 2: 确认 RED**
+- [x] **Step 2: 确认 RED**
 
 ```bash
 mvn -pl worthit-gateway -am test
@@ -822,7 +823,7 @@ mvn -pl worthit-gateway -am test
 
 Expected: FAIL，Gateway 尚无依赖和源码。
 
-- [ ] **Step 3: 增加依赖与实现**
+- [x] **Step 3: 增加依赖与实现**
 
 Gateway 使用官方 Artifact：
 
@@ -839,7 +840,7 @@ Gateway 使用官方 Artifact：
 Filter 实现 `GlobalFilter, Ordered`，顺序为
 `Ordered.HIGHEST_PRECEDENCE`，使用 `request.mutate().headers(...)` 精确清洗。
 
-- [ ] **Step 4: 验证运行栈隔离**
+- [x] **Step 4: 验证运行栈隔离**
 
 ```bash
 mvn -pl worthit-gateway -am test
@@ -848,7 +849,7 @@ mvn -pl worthit-gateway dependency:tree -Dscope=compile
 
 Expected: PASS；依赖树无 WebMVC Starter、Servlet、Tomcat、JDBC、common-http。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add -- pom.xml worthit-gateway
@@ -874,7 +875,7 @@ git commit -m "feat(gateway): 建立可信内部请求头过滤"
 - Applies to: `/api/**`, `/internal/**`
 - Excludes: `/actuator/**`, `/v3/api-docs/**`, `/swagger-ui/**`
 
-- [ ] **Step 1: 写一个 App 的失败行为测试并复制契约到另外两个 App**
+- [x] **Step 1: 写一个 App 的失败行为测试并复制契约到另外两个 App**
 
 每个 App 测试：
 
@@ -884,7 +885,7 @@ git commit -m "feat(gateway): 建立可信内部请求头过滤"
 - 响应包含可信 TraceId；
 - docs/health 路径不被该 Filter 拦截。
 
-- [ ] **Step 2: 确认 RED**
+- [x] **Step 2: 确认 RED**
 
 ```bash
 mvn -pl \
@@ -896,7 +897,7 @@ worthit-reminder/worthit-reminder-app \
 
 Expected: FAIL，三个 App 尚无启动类和安全 Filter。
 
-- [ ] **Step 3: 增加依赖**
+- [x] **Step 3: 增加依赖**
 
 三个 App 增加：
 
@@ -910,7 +911,7 @@ Expected: FAIL，三个 App 尚无启动类和安全 Filter。
 
 Tracking 另加 `common-http` 和 LoadBalancer；Reminder 保留 Client。
 
-- [ ] **Step 4: 实现 App-owned Filter**
+- [x] **Step 4: 实现 App-owned Filter**
 
 三个 Filter 都继承 `OncePerRequestFilter`，但类型位于各自 App 包内。
 Filter：
@@ -921,12 +922,12 @@ Filter：
 - 不记录 Token；
 - 不在 Common 注册。
 
-- [ ] **Step 5: 显式导入数据配置**
+- [x] **Step 5: 显式导入数据配置**
 
 三个启动类使用 `@Import(WorthItMybatisPlusConfiguration.class)`。测试上下文
 断言存在 MyBatisPlusInterceptor，且没有任何 Common BaseDO。
 
-- [ ] **Step 6: 验证 GREEN**
+- [x] **Step 6: 验证 GREEN**
 
 Run:
 
@@ -956,14 +957,14 @@ Expected: PASS。
 - service id: `worthit-reminder`
 - caller service: `worthit-tracking`
 
-- [ ] **Step 1: 写失败 Spring 上下文测试**
+- [x] **Step 1: 写失败 Spring 上下文测试**
 
 使用 `ApplicationContextRunner` 提供测试 `RestClient.Builder`、
 SameTokenProvider、TraceIdProvider、ObjectMapper，断言生成
 `ReminderCommandClient` Bean，并通过随机本机 HTTP Server 发出真实
 reconcile 请求。
 
-- [ ] **Step 2: 确认 RED**
+- [x] **Step 2: 确认 RED**
 
 ```bash
 mvn -pl worthit-tracking/worthit-tracking-app -am \
@@ -973,7 +974,7 @@ mvn -pl worthit-tracking/worthit-tracking-app -am \
 
 Expected: FAIL，配置和属性类型不存在。
 
-- [ ] **Step 3: 实现类型安全配置**
+- [x] **Step 3: 实现类型安全配置**
 
 属性：
 
@@ -990,7 +991,7 @@ public record ReminderClientProperties(
 `URI.create("http://" + properties.serviceId())`，caller 固定
 `worthit-tracking`。
 
-- [ ] **Step 4: 验证请求契约**
+- [x] **Step 4: 验证请求契约**
 
 真实 HTTP 测试断言：
 
@@ -999,7 +1000,7 @@ public record ReminderClientProperties(
 - body 含 operationType/schemaVersion，不含冻结禁止字段；
 - Same-Token、caller、TraceId 正确。
 
-- [ ] **Step 5: 验证 GREEN 并提交 MVC App/Client 接入**
+- [x] **Step 5: 验证 GREEN 并提交 MVC App/Client 接入**
 
 ```bash
 mvn -pl \
@@ -1024,7 +1025,7 @@ git commit -m "feat(app): 接入公共安全数据与内部HTTP能力"
 - Modify plan checkboxes as tasks complete
 - No production changes unless verification exposes a defect; defects must先加失败测试
 
-- [ ] **Step 1: Common 全模块测试**
+- [x] **Step 1: Common 全模块测试**
 
 ```bash
 mvn -pl \
@@ -1040,7 +1041,7 @@ worthit-common/worthit-common-test \
 
 Expected: PASS，七个模块均实际进入 Reactor 并执行测试。
 
-- [ ] **Step 2: 全 Reactor**
+- [x] **Step 2: 全 Reactor**
 
 ```bash
 mvn validate
@@ -1050,7 +1051,7 @@ mvn package
 
 Expected: 17 个 Reactor 模块全部 PASS。
 
-- [ ] **Step 3: 依赖树门禁**
+- [x] **Step 3: 依赖树门禁**
 
 ```bash
 mvn -pl worthit-reminder/worthit-reminder-client dependency:tree -Dscope=compile
@@ -1066,7 +1067,7 @@ Expected:
 - common-web 无 MVC/WebFlux/Servlet/Tomcat/springdoc runtime；
 - common-security 无 MVC/Reactor Starter。
 
-- [ ] **Step 4: 静态与 Git 审计**
+- [x] **Step 4: 静态与 Git 审计**
 
 ```bash
 git diff --check
@@ -1076,7 +1077,7 @@ git log --oneline --decorate -12
 
 Expected: 无空白错误；只剩计划勾选或明确未提交文件；无 push。
 
-- [ ] **Step 5: 最终计划与验证提交**
+- [x] **Step 5: 最终计划与验证提交**
 
 ```bash
 git add -- docs/superpowers/plans/2026-07-25-phase0-common-completion.md
@@ -1084,7 +1085,7 @@ git diff --cached --check
 git commit -m "docs(common): 记录Phase 0公共模块实施结果"
 ```
 
-- [ ] **Step 6: 完成审计**
+- [x] **Step 6: 完成审计**
 
 逐项对照设计第 9 节：
 
@@ -1093,3 +1094,57 @@ git commit -m "docs(common): 记录Phase 0公共模块实施结果"
 - 未验证的 Redis/Nacos/MySQL/业务 E2E；
 - 当前分支、commit 列表和未提交改动；
 - 明确未执行 push。
+
+## 实施结果（2026-07-25）
+
+本计划已在 `main` 分支完成。用户在实施前明确授权同步修改，并在实施过程中
+补充授权按可交付里程碑提交；因此实际提交行为覆盖设计文档中“本轮不提交”的
+原始工作区约束，但未执行 push。
+
+### 已实现与直接证据
+
+- Common Core：分页、业务异常和可信 TraceId 生成契约由单元测试覆盖。
+- Common Web/WebMVC Starter：统一响应、OpenAPI Schema、双分组和 profile
+  开关由 JSON、反射、Spring 上下文和 MockMvc 集成测试覆盖。
+- Common Security：安全头、UserContext、Same-Token Provider/Verifier 由单元
+  测试和 compile 依赖树覆盖；模块只依赖 Common Core 与 `sa-token-core`。
+- Common Data：MySQL 分页、乐观锁、审计填充、逻辑删除常量由 Spring 上下文
+  与单元测试覆盖；未引入 BaseDO、共享 Mapper 或 Repository。
+- Common HTTP：内部可信头覆盖写入、HTTP Interface 代理、统一错误信封解码、
+  64 KiB 错误体上限和连接/读取超时由单元测试及真实本地 JDK HTTP Server 覆盖；
+  未增加重试或业务 Client。
+- Common Test：Common、Client、Gateway 和 MVC App 运行栈隔离规则由 ArchUnit
+  反例 fixture 和生产代码扫描覆盖。
+- Gateway：伪造可信头清洗、Same-Token/TraceId 重建及 WebFlux 运行栈隔离由
+  WebTestClient、Validator 运行时测试、ArchUnit 和 compile 依赖树覆盖。
+- Auth、Tracking、Reminder：App-owned Same-Token 路径门禁、统一 403、安全
+  TraceId 和 MyBatis-Plus 显式导入由单元、Spring 上下文和 ArchUnit 测试覆盖。
+- Tracking → Reminder：固定调用方、服务标识、类型安全超时、LoadBalancer
+  `RestClient.Builder` 和 HTTP Interface 代理由 Spring 上下文及真实本地 HTTP
+  Server 覆盖；已验证 reconcile 路径、JSON、幂等键、三个可信头、409 解码和
+  读取超时。
+
+### 仓库级门禁
+
+- `mvn validate`：17 个 Reactor 模块全部成功。
+- `mvn clean test`：17 个 Reactor 模块全部成功，100 个测试，0 失败、0 错误。
+- `mvn package`：17 个 Reactor 模块全部成功并生成 JAR。
+- `mvn help:effective-pom -Doutput=/tmp/worthit-effective-pom.xml`：成功生成并
+  核对受管版本与公共模块坐标。
+- 依赖树使用 `-am` 在当前 Reactor 内解析，避免依赖本机旧快照缓存：
+  Reminder Client 无 Boot Starter、Springdoc、Servlet/Tomcat；Gateway 无
+  WebMVC、Tomcat、JDBC、Common HTTP；Common Web 无 MVC/WebFlux、
+  Servlet/Tomcat、Springdoc runtime；Common Security 无 MVC/Reactor Starter。
+- `git diff --check`：无空白错误。
+
+### 未验证边界
+
+本轮未启动真实 Nacos、Redis 或 MySQL，也未实现业务 Controller、Service、
+DO、Mapper、Repository、Flyway 执行和完整业务 E2E；这些仍属于后续业务实现
+与部署验收。当前证据不声称外部基础设施或完整服务启动链路已通过。
+
+### 提交与远端状态
+
+从基线 `88f8fd8` 起按设计、计划、模块和接入里程碑形成提交；最终实施结果由
+本计划的收尾提交记录。当前为普通仓库 `main` 分支，不是 linked worktree；
+未执行 push，`origin/main` 仍保持在基线提交。
