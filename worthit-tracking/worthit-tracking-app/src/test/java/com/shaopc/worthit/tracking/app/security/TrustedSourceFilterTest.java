@@ -9,10 +9,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TrustedSourceFilterTest {
 
+    private final AtomicReference<Object> downstreamTraceId =
+            new AtomicReference<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final TrustedSourceFilter filter = new TrustedSourceFilter(
             token -> {
@@ -39,6 +43,7 @@ class TrustedSourceFilterTest {
         assertThat(response.getContentAsString()).isEqualTo("reached");
         assertThat(response.getHeader(SecurityHeaderNames.TRACE_ID))
                 .isEqualTo("trace-gateway");
+        assertThat(downstreamTraceId.get()).isEqualTo("trace-gateway");
     }
 
     @Test
@@ -66,8 +71,11 @@ class TrustedSourceFilterTest {
         filter.doFilter(
                 request,
                 response,
-                (servletRequest, servletResponse) ->
-                        servletResponse.getWriter().write("reached"));
+                (servletRequest, servletResponse) -> {
+                    downstreamTraceId.set(servletRequest.getAttribute(
+                            SecurityHeaderNames.TRACE_ID));
+                    servletResponse.getWriter().write("reached");
+                });
         return response;
     }
 

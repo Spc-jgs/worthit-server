@@ -58,6 +58,7 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
         try {
             sameTokenVerifier.verify(request.getHeader(SecurityHeaderNames.SAME_TOKEN));
             String traceId = trustedOrGeneratedTraceId(request);
+            request.setAttribute(SecurityHeaderNames.TRACE_ID, traceId);
             response.setHeader(SecurityHeaderNames.TRACE_ID, traceId);
             filterChain.doFilter(request, response);
         } catch (SaTokenException exception) {
