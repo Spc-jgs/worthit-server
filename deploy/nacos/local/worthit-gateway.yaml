@@ -14,6 +14,30 @@ spring:
           uri: lb://worthit-reminder
           predicates:
             - Path=/api/reminders/**
+        - id: local-infra-auth-readiness
+          uri: lb://worthit-auth
+          predicates:
+            - Path=/__infra/auth/readiness
+          filters:
+            - SetPath=/actuator/health/readiness
+        - id: local-infra-reminder-ping
+          uri: lb://worthit-reminder
+          predicates:
+            - Path=/__infra/reminder/ping
+          filters:
+            - SetPath=/internal/__infra/ping
+        - id: local-infra-tracking-reminder-ping
+          uri: lb://worthit-tracking
+          predicates:
+            - Path=/__infra/tracking/reminder/ping
+          filters:
+            - SetPath=/internal/__infra/reminder/ping
+        - id: local-infra-tracking-config
+          uri: lb://worthit-tracking
+          predicates:
+            - Path=/__infra/tracking/config
+          filters:
+            - SetPath=/internal/__infra/config
 
 worthit:
   security:

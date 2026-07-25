@@ -162,6 +162,58 @@ verify_config() {
   printf '%s: VERIFIED\n' "${data_id}"
 }
 
+set_probe_message() {
+  local probe_message="${WORTHIT_PROBE_MESSAGE:-}"
+  if [[ -z "${probe_message}" ]]; then
+    printf 'WORTHIT_PROBE_MESSAGE must be provided\n' >&2
+    exit 1
+  fi
+  if [[ ! "${probe_message}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    printf 'WORTHIT_PROBE_MESSAGE contains unsupported characters\n' >&2
+    exit 1
+  fi
+
+  local data_id="worthit-common.yaml"
+  local response
+  local content
+  local updated_content
+  response="$(server_request \
+    --get \
+    --data-urlencode "dataId=${data_id}" \
+    --data-urlencode "groupName=${nacos_group}" \
+    --data-urlencode "namespaceId=${nacos_namespace}" \
+    "${nacos_server_base_url}/v3/admin/cs/config")"
+  check_result_code "Read ${data_id}" "${response}"
+  content="$(jq -er '.data.content' <<<"${response}")"
+
+  if [[ "$(grep -c '^[[:space:]]*probe-message:' <<<"${content}")" -ne 1 ]]; then
+    printf '%s must contain exactly one probe-message property\n' \
+      "${data_id}" >&2
+    exit 1
+  fi
+  updated_content="$(awk -v value="${probe_message}" '
+    /^[[:space:]]*probe-message:/ {
+      sub(/probe-message:.*/, "probe-message: " value)
+    }
+    { print }
+  ' <<<"${content}")"
+
+  response="$(server_request \
+    --request POST \
+    --data-urlencode "dataId=${data_id}" \
+    --data-urlencode "groupName=${nacos_group}" \
+    --data-urlencode "namespaceId=${nacos_namespace}" \
+    --data-urlencode "content=${updated_content}" \
+    --data-urlencode "type=yaml" \
+    "${nacos_server_base_url}/v3/admin/cs/config")"
+  check_result_code "Update ${data_id} probe-message" "${response}"
+  if ! jq -e '.data == true' >/dev/null <<<"${response}"; then
+    printf '%s: probe-message update rejected\n' "${data_id}" >&2
+    exit 1
+  fi
+  printf '%s probe-message: UPDATED\n' "${data_id}"
+}
+
 list_service() {
   local service_name="$1"
   local response
@@ -179,7 +231,8 @@ list_service() {
 }
 
 usage() {
-  printf 'Usage: %s {check|sync|verify|services}\n' "$0" >&2
+  printf 'Usage: %s {check|sync|verify|services|set-probe-message}\n' \
+    "$0" >&2
   exit 2
 }
 
@@ -210,6 +263,10 @@ main() {
       for service_name in "${services[@]}"; do
         list_service "${service_name}"
       done
+      ;;
+    set-probe-message)
+      check_readiness
+      set_probe_message
       ;;
     *)
       usage
