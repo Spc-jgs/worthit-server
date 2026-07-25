@@ -8,6 +8,7 @@ import com.shaopc.worthit.reminder.app.fixture.ReminderAppFixture;
 import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnAppFixture;
 import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnBootFixture;
 import com.shaopc.worthit.reminder.client.fixture.ValidClientFixture;
+import com.shaopc.worthit.gateway.fixture.GatewayDependsOnRestClientFixture;
 import com.shaopc.worthit.gateway.fixture.GatewayDependsOnServletFixture;
 import com.shaopc.worthit.gateway.fixture.ValidGatewayFixture;
 import com.shaopc.worthit.tracking.fixture.TrackingFixture;
@@ -109,6 +110,18 @@ class WorthItArchitectureRulesTest {
                                 .check(classes))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("jakarta.servlet");
+    }
+
+    @Test
+    void gatewayRuntimeRuleRejectsBlockingHttpClientDependency() {
+        JavaClasses classes = importer.importClasses(
+                GatewayDependsOnRestClientFixture.class);
+
+        assertThatThrownBy(
+                        () -> WorthItArchitectureRules.GATEWAY_MUST_STAY_REACTIVE
+                                .check(classes))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("org.springframework.web.client");
     }
 
     @Test

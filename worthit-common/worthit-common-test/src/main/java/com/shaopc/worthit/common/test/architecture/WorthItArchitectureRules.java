@@ -63,6 +63,9 @@ public final class WorthItArchitectureRules {
                     .should().dependOnClassesThat().resideInAnyPackage(
                             "jakarta.servlet..",
                             "org.springframework.web.servlet..",
+                            "org.springframework.web.client..",
+                            "org.springframework.jdbc..",
+                            "org.flywaydb..",
                             "org.apache.catalina..",
                             "org.apache.tomcat..",
                             "com.shaopc.worthit.common.webmvc..")
