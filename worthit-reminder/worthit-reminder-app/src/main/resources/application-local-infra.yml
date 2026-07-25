@@ -26,4 +26,5 @@ spring:
     enabled: true
 
 sa-token:
+  token-name: worthit-token
   jwt-secret-key: ${WORTHIT_SA_TOKEN_JWT_SECRET}

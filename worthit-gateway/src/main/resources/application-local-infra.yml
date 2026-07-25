@@ -20,4 +20,5 @@ spring:
       password: ${WORTHIT_REDIS_PASSWORD}
 
 sa-token:
+  token-name: worthit-token
   jwt-secret-key: ${WORTHIT_SA_TOKEN_JWT_SECRET}
