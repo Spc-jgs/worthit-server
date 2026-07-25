@@ -31,8 +31,10 @@ Common 不依赖业务 App、业务 Client、业务 DTO 或具体服务实现：
 
 - `common-core` 不放用户、物品、订阅、想买或提醒状态。
 - `common-web` 不放具体 Controller、Gateway Filter 或页面模型。
-- `common-webmvc-starter` 只装配三个 Servlet/MVC App 共用的 Web、校验和
-  OpenAPI 运行基线，不放业务 Controller、业务错误码或服务专属安全策略。
+- `common-webmvc-starter` 装配三个 Servlet/MVC App 共用的 Web、校验、
+  OpenAPI 和技术性安全运行基线，可以包含通用 Servlet Filter、Sa-Token
+  运行时与可覆盖的默认安全策略；不放业务 Controller、业务错误码或服务专属
+  放行策略。
 - `common-security` 不放用户表、微信协议或某个运行模型的过滤器。
 - `common-data` 不放跨服务共享 DO、Mapper 或 Repository。
 - `common-http` 不放 Reminder/Tracking 业务契约。
@@ -67,7 +69,8 @@ Client 禁止包含：
 - Auth、Tracking、Reminder 使用 Spring MVC/Servlet，并可使用 JDBC、MyBatis 和本地事务。
 - Auth、Tracking、Reminder 通过 `common-webmvc-starter` 复用 Spring MVC、
   Bean Validation 和 OpenAPI 装配。
-- 具体 Controller、Servlet Filter、异常适配和服务专属安全配置仍留在各自 App。
+- 具体 Controller、业务异常适配和服务专属安全策略仍留在各自 App；三个 App
+  不复制相同的 Servlet Filter 或 Sa-Token 运行时装配。
 - Gateway、Client、`common-core` 和中立的 `common-web` 禁止依赖
   `common-webmvc-starter`。
 - Gateway 的 WebFlux Filter、异常适配和安全配置留在 Gateway。

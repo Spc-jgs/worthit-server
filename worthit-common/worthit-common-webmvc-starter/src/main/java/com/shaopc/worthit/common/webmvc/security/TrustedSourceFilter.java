@@ -1,4 +1,4 @@
-package com.shaopc.worthit.reminder.app.security;
+package com.shaopc.worthit.common.webmvc.security;
 
 import cn.dev33.satoken.exception.SaTokenException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +13,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -22,15 +21,15 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 校验提醒服务公网和内部接口请求来自可信 Gateway。
+ * 校验 Servlet 公网和内部接口请求来自可信 Gateway。
  */
-@Component
 public final class TrustedSourceFilter extends OncePerRequestFilter {
 
     private final SameTokenVerifier sameTokenVerifier;
     private final TraceIdGenerator traceIdGenerator;
     private final ObjectMapper objectMapper;
     private final UserLoginVerifier userLoginVerifier;
+    private final PublicRequestAuthorizationPolicy authorizationPolicy;
 
     /**
      * 创建可信来源过滤器。
@@ -39,12 +38,14 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
      * @param traceIdGenerator  TraceId 生成器
      * @param objectMapper      统一响应序列化器
      * @param userLoginVerifier 用户登录态校验器
+     * @param authorizationPolicy 公网请求登录策略
      */
     public TrustedSourceFilter(
             SameTokenVerifier sameTokenVerifier,
             TraceIdGenerator traceIdGenerator,
             ObjectMapper objectMapper,
-            UserLoginVerifier userLoginVerifier) {
+            UserLoginVerifier userLoginVerifier,
+            PublicRequestAuthorizationPolicy authorizationPolicy) {
         this.sameTokenVerifier = Objects.requireNonNull(
                 sameTokenVerifier, "Same-Token校验器不能为空");
         this.traceIdGenerator = Objects.requireNonNull(
@@ -53,6 +54,8 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
                 objectMapper, "ObjectMapper不能为空");
         this.userLoginVerifier = Objects.requireNonNull(
                 userLoginVerifier, "用户登录态校验器不能为空");
+        this.authorizationPolicy = Objects.requireNonNull(
+                authorizationPolicy, "公网请求登录策略不能为空");
     }
 
     @Override
@@ -61,15 +64,17 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
         try {
-            sameTokenVerifier.verify(request.getHeader(SecurityHeaderNames.SAME_TOKEN));
+            sameTokenVerifier.verify(
+                    request.getHeader(SecurityHeaderNames.SAME_TOKEN));
         } catch (SaTokenException exception) {
             writeForbidden(response, traceIdGenerator.generate());
             return;
         }
 
         String traceId = trustedOrGeneratedTraceId(request);
+        request.setAttribute(SecurityHeaderNames.TRACE_ID, traceId);
         response.setHeader(SecurityHeaderNames.TRACE_ID, traceId);
-        if (isApiPath(request.getRequestURI())) {
+        if (requiresUserLogin(request.getRequestURI())) {
             try {
                 userLoginVerifier.verify();
             } catch (SaTokenException exception) {
@@ -86,6 +91,10 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
         return !isApiPath(path) && !isInternalPath(path);
     }
 
+    private boolean requiresUserLogin(String path) {
+        return isApiPath(path) && authorizationPolicy.requiresLogin(path);
+    }
+
     private String trustedOrGeneratedTraceId(HttpServletRequest request) {
         String traceId = request.getHeader(SecurityHeaderNames.TRACE_ID);
         return traceId == null || traceId.isBlank()
@@ -93,8 +102,8 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
                 : traceId;
     }
 
-    private void writeForbidden(HttpServletResponse response, String traceId)
-            throws IOException {
+    private void writeForbidden(
+            HttpServletResponse response, String traceId) throws IOException {
         writeError(
                 response,
                 HttpStatus.FORBIDDEN,
@@ -102,8 +111,8 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
                 traceId);
     }
 
-    private void writeUnauthorized(HttpServletResponse response, String traceId)
-            throws IOException {
+    private void writeUnauthorized(
+            HttpServletResponse response, String traceId) throws IOException {
         writeError(
                 response,
                 HttpStatus.UNAUTHORIZED,
@@ -123,10 +132,7 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
         response.setHeader(SecurityHeaderNames.TRACE_ID, requiredTraceId);
         objectMapper.writeValue(
                 response.getOutputStream(),
-                ApiResponse.error(
-                        errorCode,
-                        requiredTraceId,
-                        List.of()));
+                ApiResponse.error(errorCode, requiredTraceId, List.of()));
     }
 
     private static boolean isApiPath(String path) {

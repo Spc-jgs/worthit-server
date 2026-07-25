@@ -51,7 +51,9 @@ Spring Boot 3.5 官方文档推荐构造器注入，因为它允许依赖字段�
 - Gateway 负责清洗不可信身份头和 TraceId；下游不直接信任外部同名请求头。
 - `/internal/**` 不配置公网路由，内部鉴权失败不得进入 Application 成功路径。
 - Auth、Tracking、Reminder 通过 `worthit-common-webmvc-starter` 接入
-  Spring MVC、Bean Validation 和 springdoc，不在三个 App 复制运行时装配。
+  Spring MVC、Bean Validation、springdoc 和共同的 Servlet 安全运行时，不在
+  三个 App 复制 Filter、Sa-Token 或默认安全 Bean；服务专属放行策略仍由 App
+  显式提供。
 - 纯契约 Client 使用 `spring-web` 声明 HTTP Interface，不引入
   `spring-boot-starter-web`、springdoc、Servlet 或内嵌服务器。
 - Gateway 禁止依赖 `worthit-common-webmvc-starter` 或

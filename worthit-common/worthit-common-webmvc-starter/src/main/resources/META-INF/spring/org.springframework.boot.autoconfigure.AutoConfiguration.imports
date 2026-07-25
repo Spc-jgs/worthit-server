@@ -1,1 +1,2 @@
 com.shaopc.worthit.common.webmvc.autoconfigure.WorthItOpenApiGroupsAutoConfiguration
+com.shaopc.worthit.common.webmvc.autoconfigure.WorthItMvcSecurityAutoConfiguration

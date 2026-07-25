@@ -1,9 +1,11 @@
-package com.shaopc.worthit.auth.app.security;
+package com.shaopc.worthit.common.webmvc.security;
 
+import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.SameTokenInvalidException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -11,6 +13,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,35 +21,48 @@ class TrustedSourceFilterTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicBoolean userLoginValid = new AtomicBoolean(true);
+    private final AtomicBoolean publicRequestRequiresLogin =
+            new AtomicBoolean(true);
     private final AtomicInteger userLoginChecks = new AtomicInteger();
-    private final TrustedSourceFilter filter = new TrustedSourceFilter(
-            token -> {
-                if (!"same-token-valid".equals(token)) {
-                    throw new SameTokenInvalidException(token);
-                }
-            },
-            () -> "trace-generated",
-            objectMapper,
-            () -> {
-                userLoginChecks.incrementAndGet();
-                if (!userLoginValid.get()) {
-                    throw notLoggedIn();
-                }
-            });
+    private final AtomicReference<Object> downstreamTraceId =
+            new AtomicReference<>();
+    private TrustedSourceFilter filter;
+
+    @BeforeEach
+    void setUp() {
+        userLoginValid.set(true);
+        publicRequestRequiresLogin.set(true);
+        userLoginChecks.set(0);
+        downstreamTraceId.set(null);
+        filter = new TrustedSourceFilter(
+                token -> {
+                    if (!"same-token-valid".equals(token)) {
+                        throw new SameTokenInvalidException(token);
+                    }
+                },
+                () -> "trace-generated",
+                objectMapper,
+                () -> {
+                    userLoginChecks.incrementAndGet();
+                    if (!userLoginValid.get()) {
+                        throw notLoggedIn();
+                    }
+                },
+                path -> publicRequestRequiresLogin.get());
+    }
 
     @Test
     void rejectsMissingOrIncorrectSameTokenWithUnifiedForbiddenResponse()
             throws Exception {
-        MockHttpServletResponse missing = execute("/internal/jobs", null, null);
-        MockHttpServletResponse incorrect =
-                execute("/api/items", "same-token-wrong", "trace-forged");
-
-        assertForbidden(missing, "trace-generated");
-        assertForbidden(incorrect, "trace-generated");
+        assertForbidden(execute("/internal/jobs", null, null));
+        assertForbidden(execute(
+                "/api/items",
+                "same-token-wrong",
+                "trace-untrusted"));
     }
 
     @Test
-    void allowsValidSameTokenAndReturnsTrustedTraceId() throws Exception {
+    void propagatesTrustedTraceIdToRequestAndResponse() throws Exception {
         MockHttpServletResponse response =
                 execute("/api/items", "same-token-valid", "trace-gateway");
 
@@ -54,22 +70,47 @@ class TrustedSourceFilterTest {
         assertThat(response.getContentAsString()).isEqualTo("reached");
         assertThat(response.getHeader(SecurityHeaderNames.TRACE_ID))
                 .isEqualTo("trace-gateway");
+        assertThat(downstreamTraceId.get()).isEqualTo("trace-gateway");
         assertThat(userLoginChecks).hasValue(1);
     }
 
     @Test
-    void internalAndLoginPathsSkipExistingUserLoginCheck() throws Exception {
+    void generatesTraceIdWhenTrustedHeaderIsMissingOrBlank() throws Exception {
+        MockHttpServletResponse missing =
+                execute("/internal/jobs", "same-token-valid", null);
+        MockHttpServletResponse blank =
+                execute("/internal/jobs", "same-token-valid", " ");
+
+        assertThat(missing.getHeader(SecurityHeaderNames.TRACE_ID))
+                .isEqualTo("trace-generated");
+        assertThat(blank.getHeader(SecurityHeaderNames.TRACE_ID))
+                .isEqualTo("trace-generated");
+        assertThat(downstreamTraceId.get()).isEqualTo("trace-generated");
+    }
+
+    @Test
+    void policyCanAllowPublicRequestWithoutUserLogin() throws Exception {
+        publicRequestRequiresLogin.set(false);
         userLoginValid.set(false);
 
-        MockHttpServletResponse internal =
-                execute("/internal/jobs", "same-token-valid", "trace-gateway");
-        MockHttpServletResponse login = execute(
+        MockHttpServletResponse response = execute(
                 "/api/v1/auth/wechat/login",
                 "same-token-valid",
                 "trace-gateway");
 
-        assertThat(internal.getStatus()).isEqualTo(HttpStatus.OK.value());
-        assertThat(login.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.getContentAsString()).isEqualTo("reached");
+        assertThat(userLoginChecks).hasValue(0);
+    }
+
+    @Test
+    void internalPathNeverChecksUserLogin() throws Exception {
+        userLoginValid.set(false);
+
+        MockHttpServletResponse response =
+                execute("/internal/jobs", "same-token-valid", "trace-gateway");
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
         assertThat(userLoginChecks).hasValue(0);
     }
 
@@ -85,15 +126,19 @@ class TrustedSourceFilterTest {
     }
 
     @Test
-    void skipsHealthAndDocumentationPaths() throws Exception {
+    void skipsNonApiAndDocumentationPaths() throws Exception {
         for (String path : new String[]{
                 "/actuator/health",
                 "/v3/api-docs/public",
-                "/swagger-ui/index.html"}) {
+                "/swagger-ui/index.html",
+                "/apis/not-protected",
+                "/internals/not-protected"}) {
             MockHttpServletResponse response = execute(path, null, null);
+
             assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
             assertThat(response.getContentAsString()).isEqualTo("reached");
         }
+        assertThat(userLoginChecks).hasValue(0);
     }
 
     private MockHttpServletResponse execute(
@@ -106,43 +151,48 @@ class TrustedSourceFilterTest {
             request.addHeader(SecurityHeaderNames.TRACE_ID, traceId);
         }
         MockHttpServletResponse response = new MockHttpServletResponse();
-
         filter.doFilter(
                 request,
                 response,
-                (servletRequest, servletResponse) ->
-                        servletResponse.getWriter().write("reached"));
+                (servletRequest, servletResponse) -> {
+                    downstreamTraceId.set(servletRequest.getAttribute(
+                            SecurityHeaderNames.TRACE_ID));
+                    servletResponse.getWriter().write("reached");
+                });
         return response;
     }
 
-    private void assertForbidden(
-            MockHttpServletResponse response, String expectedTraceId)
+    private void assertForbidden(MockHttpServletResponse response)
             throws Exception {
         JsonNode body = objectMapper.readTree(response.getContentAsByteArray());
+
         assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
         assertThat(response.getHeader(SecurityHeaderNames.TRACE_ID))
-                .isEqualTo(expectedTraceId);
+                .isEqualTo("trace-generated");
         assertThat(body.path("success").booleanValue()).isFalse();
         assertThat(body.path("code").textValue()).isEqualTo("AUTH_FORBIDDEN");
-        assertThat(body.path("traceId").textValue()).isEqualTo(expectedTraceId);
+        assertThat(body.path("traceId").textValue())
+                .isEqualTo("trace-generated");
     }
 
     private void assertUnauthorized(
             MockHttpServletResponse response, String expectedTraceId)
             throws Exception {
         JsonNode body = objectMapper.readTree(response.getContentAsByteArray());
+
         assertThat(response.getStatus())
                 .isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(body.path("success").booleanValue()).isFalse();
         assertThat(body.path("code").textValue())
                 .isEqualTo("AUTH_UNAUTHORIZED");
         assertThat(body.path("traceId").textValue()).isEqualTo(expectedTraceId);
     }
 
-    private static cn.dev33.satoken.exception.NotLoginException notLoggedIn() {
-        return cn.dev33.satoken.exception.NotLoginException.newInstance(
+    private static NotLoginException notLoggedIn() {
+        return NotLoginException.newInstance(
                 "login",
-                cn.dev33.satoken.exception.NotLoginException.NOT_TOKEN,
-                cn.dev33.satoken.exception.NotLoginException.NOT_TOKEN_MESSAGE,
+                NotLoginException.NOT_TOKEN,
+                NotLoginException.NOT_TOKEN_MESSAGE,
                 null);
     }
 }
