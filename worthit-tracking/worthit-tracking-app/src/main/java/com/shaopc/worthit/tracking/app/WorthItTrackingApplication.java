@@ -1,7 +1,6 @@
 package com.shaopc.worthit.tracking.app;
 
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
-import com.shaopc.worthit.common.data.config.WorthItMybatisPlusConfiguration;
 import com.shaopc.worthit.common.http.trace.TraceIdProvider;
 import com.shaopc.worthit.tracking.infrastructure.client.ReminderClientConfiguration;
 import com.shaopc.worthit.tracking.infrastructure.client.ServletTraceIdProvider;
@@ -13,10 +12,7 @@ import org.springframework.context.annotation.Import;
 /**
  * WorthIt 物品追踪服务启动入口。
  */
-@Import({
-        WorthItMybatisPlusConfiguration.class,
-        ReminderClientConfiguration.class
-})
+@Import(ReminderClientConfiguration.class)
 @SpringBootApplication
 public class WorthItTrackingApplication {
 

@@ -62,6 +62,8 @@ Phase 0 至少使用 ArchUnit 或等价可执行检查覆盖：
 - Common 不依赖业务 App、Client 或业务包；
 - App 不直接依赖另一服务 App；
 - Persistence DO 和 Mapper 不泄漏到 Domain、Client 或公网 Response。
+- Common 自动配置必须覆盖 classpath 自动发现、默认 Bean、应用自定义 Bean
+  回退和关键插件顺序；消费 App 必须验证入口不再手动导入通用自动配置。
 
 依赖树审阅用于补充 ArchUnit，确认没有通过传递依赖绕过边界。
 

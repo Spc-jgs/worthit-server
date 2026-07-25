@@ -36,6 +36,9 @@ Common 不依赖业务 App、业务 Client、业务 DTO 或具体服务实现：
   运行时与可覆盖的默认安全策略；不放业务 Controller、业务错误码或服务专属
   放行策略。
 - `common-security` 不放用户表、微信协议或某个运行模型的过滤器。
+- `common-data` 通过 Spring Boot 自动装配提供多个业务 App 共用的
+  MyBatis-Plus 技术基线；业务 App 引入依赖后不得再手动 `@Import` 通用数据
+  配置，也不得复制同一插件链。默认 Bean 必须允许 App 按类型覆盖。
 - `common-data` 不放跨服务共享 DO、Mapper 或 Repository。
 - `common-http` 不放 Reminder/Tracking 业务契约。
 - `common-test` 不进入生产运行依赖。

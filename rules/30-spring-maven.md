@@ -7,6 +7,11 @@
 - 禁止字段注入和通过静态方法从容器取 Bean。
 - Bean 按服务和业务职责放置，不依赖扩大 `@ComponentScan` 范围解决错误分包。
 - 同一接口存在多个实现时，使用有业务含义的配置或限定符，不依赖 Bean 名称碰巧匹配。
+- 多个 App 共用的运行时技术装配使用 Spring Boot `@AutoConfiguration`，
+  并登记在
+  `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`；
+  使用 classpath 条件限制生效范围，并用 `@ConditionalOnMissingBean` 为应用级
+  覆盖让路。业务 App 不手动 `@Import` 此类通用自动配置。
 
 Spring Boot 3.5 官方文档推荐构造器注入，因为它允许依赖字段保持不可变。参考：
 
@@ -101,6 +106,8 @@ Spring Boot 3.5 官方文档推荐构造器注入，因为它允许依赖字段�
 - 新增 Common 需要至少两个真实使用者，且提取内容技术中立。
 - 新增 Client 需要真实的内部调用方，由服务提供方拥有。
 - 新增 Starter 或自动配置需要多个真实 App 重复同一运行时装配；不能混入基础 Client。
+- `worthit-common-data` 的 MyBatis-Plus 技术基线随依赖自动生效；Auth、
+  Tracking、Reminder 不声明手动导入或重复插件 Bean。
 - 新增聚合层、工具模块或抽象接口前，必须证明现有边界无法承载。
 - 模块变化属于架构变更，先更新权威架构文档并获得确认。
 
