@@ -2,4 +2,7 @@ worthit:
   security:
     same-token:
       rotation:
-        enabled: false
+        enabled: true
+        check-interval: 10s
+        refresh-before: 5m
+        lock-ttl: 30s
