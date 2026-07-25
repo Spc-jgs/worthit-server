@@ -10,6 +10,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,6 +20,8 @@ class TrustedSourceFilterTest {
     private final AtomicReference<Object> downstreamTraceId =
             new AtomicReference<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AtomicBoolean userLoginValid = new AtomicBoolean(true);
+    private final AtomicInteger userLoginChecks = new AtomicInteger();
     private final TrustedSourceFilter filter = new TrustedSourceFilter(
             token -> {
                 if (!"same-token-valid".equals(token)) {
@@ -25,7 +29,13 @@ class TrustedSourceFilterTest {
                 }
             },
             () -> "trace-generated",
-            objectMapper);
+            objectMapper,
+            () -> {
+                userLoginChecks.incrementAndGet();
+                if (!userLoginValid.get()) {
+                    throw notLoggedIn();
+                }
+            });
 
     @Test
     void rejectsMissingOrIncorrectSameTokenWithUnifiedForbiddenResponse()
@@ -44,6 +54,29 @@ class TrustedSourceFilterTest {
         assertThat(response.getHeader(SecurityHeaderNames.TRACE_ID))
                 .isEqualTo("trace-gateway");
         assertThat(downstreamTraceId.get()).isEqualTo("trace-gateway");
+        assertThat(userLoginChecks).hasValue(1);
+    }
+
+    @Test
+    void internalPathSkipsExistingUserLoginCheck() throws Exception {
+        userLoginValid.set(false);
+
+        MockHttpServletResponse response =
+                execute("/internal/jobs", "same-token-valid", "trace-gateway");
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertThat(userLoginChecks).hasValue(0);
+    }
+
+    @Test
+    void rejectsPublicApiWithoutUserLoginAndDoesNotReachChain() throws Exception {
+        userLoginValid.set(false);
+
+        MockHttpServletResponse response =
+                execute("/api/items", "same-token-valid", "trace-gateway");
+
+        assertUnauthorized(response, "trace-gateway");
+        assertThat(response.getContentAsString()).doesNotContain("reached");
     }
 
     @Test
@@ -87,5 +120,24 @@ class TrustedSourceFilterTest {
         assertThat(body.path("success").booleanValue()).isFalse();
         assertThat(body.path("code").textValue()).isEqualTo("AUTH_FORBIDDEN");
         assertThat(body.path("traceId").textValue()).isEqualTo("trace-generated");
+    }
+
+    private void assertUnauthorized(
+            MockHttpServletResponse response, String expectedTraceId)
+            throws Exception {
+        JsonNode body = objectMapper.readTree(response.getContentAsByteArray());
+        assertThat(response.getStatus())
+                .isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(body.path("code").textValue())
+                .isEqualTo("AUTH_UNAUTHORIZED");
+        assertThat(body.path("traceId").textValue()).isEqualTo(expectedTraceId);
+    }
+
+    private static cn.dev33.satoken.exception.NotLoginException notLoggedIn() {
+        return cn.dev33.satoken.exception.NotLoginException.newInstance(
+                "login",
+                cn.dev33.satoken.exception.NotLoginException.NOT_TOKEN,
+                cn.dev33.satoken.exception.NotLoginException.NOT_TOKEN_MESSAGE,
+                null);
     }
 }

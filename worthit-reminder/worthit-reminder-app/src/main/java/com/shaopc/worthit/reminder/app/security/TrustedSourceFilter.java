@@ -30,6 +30,7 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
     private final SameTokenVerifier sameTokenVerifier;
     private final TraceIdGenerator traceIdGenerator;
     private final ObjectMapper objectMapper;
+    private final UserLoginVerifier userLoginVerifier;
 
     /**
      * 创建可信来源过滤器。
@@ -37,17 +38,21 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
      * @param sameTokenVerifier Same-Token 校验器
      * @param traceIdGenerator  TraceId 生成器
      * @param objectMapper      统一响应序列化器
+     * @param userLoginVerifier 用户登录态校验器
      */
     public TrustedSourceFilter(
             SameTokenVerifier sameTokenVerifier,
             TraceIdGenerator traceIdGenerator,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            UserLoginVerifier userLoginVerifier) {
         this.sameTokenVerifier = Objects.requireNonNull(
                 sameTokenVerifier, "Same-Token校验器不能为空");
         this.traceIdGenerator = Objects.requireNonNull(
                 traceIdGenerator, "TraceId生成器不能为空");
         this.objectMapper = Objects.requireNonNull(
                 objectMapper, "ObjectMapper不能为空");
+        this.userLoginVerifier = Objects.requireNonNull(
+                userLoginVerifier, "用户登录态校验器不能为空");
     }
 
     @Override
@@ -57,12 +62,22 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
             FilterChain filterChain) throws ServletException, IOException {
         try {
             sameTokenVerifier.verify(request.getHeader(SecurityHeaderNames.SAME_TOKEN));
-            String traceId = trustedOrGeneratedTraceId(request);
-            response.setHeader(SecurityHeaderNames.TRACE_ID, traceId);
-            filterChain.doFilter(request, response);
         } catch (SaTokenException exception) {
             writeForbidden(response, traceIdGenerator.generate());
+            return;
         }
+
+        String traceId = trustedOrGeneratedTraceId(request);
+        response.setHeader(SecurityHeaderNames.TRACE_ID, traceId);
+        if (isApiPath(request.getRequestURI())) {
+            try {
+                userLoginVerifier.verify();
+            } catch (SaTokenException exception) {
+                writeUnauthorized(response, traceId);
+                return;
+            }
+        }
+        filterChain.doFilter(request, response);
     }
 
     @Override
@@ -80,15 +95,36 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
 
     private void writeForbidden(HttpServletResponse response, String traceId)
             throws IOException {
+        writeError(
+                response,
+                HttpStatus.FORBIDDEN,
+                SecurityErrorCode.AUTH_FORBIDDEN,
+                traceId);
+    }
+
+    private void writeUnauthorized(HttpServletResponse response, String traceId)
+            throws IOException {
+        writeError(
+                response,
+                HttpStatus.UNAUTHORIZED,
+                SecurityErrorCode.AUTH_UNAUTHORIZED,
+                traceId);
+    }
+
+    private void writeError(
+            HttpServletResponse response,
+            HttpStatus status,
+            SecurityErrorCode errorCode,
+            String traceId) throws IOException {
         String requiredTraceId = requireTraceId(traceId);
-        response.setStatus(HttpStatus.FORBIDDEN.value());
+        response.setStatus(status.value());
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setHeader(SecurityHeaderNames.TRACE_ID, requiredTraceId);
         objectMapper.writeValue(
                 response.getOutputStream(),
                 ApiResponse.error(
-                        SecurityErrorCode.AUTH_FORBIDDEN,
+                        errorCode,
                         requiredTraceId,
                         List.of()));
     }
