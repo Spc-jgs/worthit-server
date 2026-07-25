@@ -1,0 +1,5 @@
+worthit:
+  security:
+    same-token:
+      rotation:
+        enabled: false

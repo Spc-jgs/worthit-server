@@ -1,0 +1,5 @@
+worthit:
+  clients:
+    reminder:
+      connect-timeout: 2s
+      read-timeout: 5s

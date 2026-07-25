@@ -1,0 +1,21 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: worthit-auth-api
+          uri: lb://worthit-auth
+          predicates:
+            - Path=/api/auth/**
+        - id: worthit-tracking-api
+          uri: lb://worthit-tracking
+          predicates:
+            - Path=/api/tracking/**
+        - id: worthit-reminder-api
+          uri: lb://worthit-reminder
+          predicates:
+            - Path=/api/reminders/**
+
+worthit:
+  security:
+    trusted-header-cleanup:
+      enabled: true
