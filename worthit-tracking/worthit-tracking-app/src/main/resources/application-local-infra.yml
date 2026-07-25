@@ -1,0 +1,29 @@
+spring:
+  config:
+    import:
+      - nacos:worthit-common.yaml?group=${NACOS_GROUP:WORTHIT_LOCAL}&refreshEnabled=true
+      - nacos:${spring.application.name}.yaml?group=${NACOS_GROUP:WORTHIT_LOCAL}&refreshEnabled=true
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}
+      config:
+        namespace: ${NACOS_NAMESPACE:worthit-local}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:worthit-local}
+        group: ${NACOS_GROUP:WORTHIT_LOCAL}
+  datasource:
+    url: jdbc:mysql://${WORTHIT_MYSQL_HOST:127.0.0.1}:${WORTHIT_MYSQL_PORT:3306}/worthit_tracking?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${WORTHIT_TRACKING_DB_USERNAME}
+    password: ${WORTHIT_TRACKING_DB_PASSWORD}
+  data:
+    redis:
+      host: ${WORTHIT_REDIS_HOST:127.0.0.1}
+      port: ${WORTHIT_REDIS_PORT:6379}
+      password: ${WORTHIT_REDIS_PASSWORD}
+  flyway:
+    enabled: true
+
+sa-token:
+  jwt-secret-key: ${WORTHIT_SA_TOKEN_JWT_SECRET}

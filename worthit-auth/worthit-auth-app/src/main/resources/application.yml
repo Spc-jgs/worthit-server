@@ -1,3 +1,21 @@
+spring:
+  application:
+    name: worthit-auth
+
+server:
+  port: 18081
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
 springdoc:
   api-docs:
     enabled: false
