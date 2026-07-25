@@ -56,6 +56,8 @@ class NacosTemplateContractTest {
         assertThat(common.getProperty("logging.level.root")).isNotNull();
         assertThat(common.getProperty("management.endpoint.health.probes.enabled"))
                 .isEqualTo(true);
+        assertThat(common.getProperty("management.endpoints.web.exposure.include"))
+                .isEqualTo("health,info,metrics");
 
         assertThat(gateway.getProperty("spring.cloud.gateway.routes[0].uri"))
                 .isEqualTo("lb://worthit-auth");
