@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.infra;
+package com.shaopc.worthit.tracking.app.infra;
 
 import com.shaopc.worthit.common.http.client.HttpServiceClientFactory;
 import com.shaopc.worthit.common.http.config.HttpClientTimeouts;

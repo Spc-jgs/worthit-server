@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.infra;
+package com.shaopc.worthit.tracking.app.infra;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

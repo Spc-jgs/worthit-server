@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.infra;
+package com.shaopc.worthit.tracking.app.infra;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.http.client.HttpServiceClientFactory;
@@ -34,6 +34,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class LocalInfraProbeClientTest {
+
+    @Test
+    void localProbeBelongsToApplicationComponentScan() {
+        assertThat(LocalInfraProbeController.class.getPackageName())
+                .startsWith("com.shaopc.worthit.tracking.app.");
+    }
 
     @Test
     void createsClientOnlyWithLocalInfraProfile() {

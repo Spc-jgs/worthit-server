@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.infra;
+package com.shaopc.worthit.tracking.app.infra;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
