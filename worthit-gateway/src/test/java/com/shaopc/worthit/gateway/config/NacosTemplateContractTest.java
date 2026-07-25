@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -95,6 +96,36 @@ class NacosTemplateContractTest {
                 "verify)",
                 "services)")
                 .doesNotContain("delete)");
+    }
+
+    @Test
+    void synchronizationScriptSupportsDisabledClientAuthentication()
+            throws IOException, InterruptedException {
+        Path fakeBin = Files.createTempDirectory("nacos-script-test");
+        Path fakeCurl = fakeBin.resolve("curl");
+        Files.writeString(
+                fakeCurl,
+                "#!/usr/bin/env bash\nprintf '{\"code\":0}'\n",
+                StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(fakeCurl, Set.of(
+                PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE,
+                PosixFilePermission.OWNER_EXECUTE));
+
+        ProcessBuilder processBuilder = new ProcessBuilder(
+                "/bin/bash",
+                repositoryRoot.resolve("scripts/local-infra/nacos-config.sh").toString(),
+                "check");
+        processBuilder.environment().remove("NACOS_USERNAME");
+        processBuilder.environment().remove("NACOS_PASSWORD");
+        processBuilder.environment().put(
+                "PATH",
+                fakeBin + ":" + processBuilder.environment().get("PATH"));
+        Process process = processBuilder.redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        assertThat(process.waitFor()).as(output).isZero();
+        assertThat(output).contains("Nacos server and console: READY");
     }
 
     private PropertySource<?> load(String dataId) throws IOException {

@@ -71,7 +71,11 @@ configure_authentication() {
 }
 
 server_request() {
-  curl "${curl_flags[@]}" "${auth_header[@]}" "$@"
+  if [[ "${#auth_header[@]}" -gt 0 ]]; then
+    curl "${curl_flags[@]}" "${auth_header[@]}" "$@"
+  else
+    curl "${curl_flags[@]}" "$@"
+  fi
 }
 
 check_readiness() {
