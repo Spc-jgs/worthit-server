@@ -11,12 +11,12 @@ import org.springframework.context.annotation.Bean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class WorthItOpenApiAutoConfigurationTest {
+class WorthItOpenApiGroupsAutoConfigurationTest {
 
     private final WebApplicationContextRunner webContextRunner =
             new WebApplicationContextRunner()
                     .withConfiguration(AutoConfigurations.of(
-                            WorthItOpenApiAutoConfiguration.class));
+                            WorthItOpenApiGroupsAutoConfiguration.class));
 
     @Test
     void doesNotCreateGroupsWhenApiDocsAreDisabledByDefault() {
@@ -48,7 +48,7 @@ class WorthItOpenApiAutoConfigurationTest {
     void doesNotCreateGroupsOutsideServletApplications() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        WorthItOpenApiAutoConfiguration.class))
+                        WorthItOpenApiGroupsAutoConfiguration.class))
                 .withPropertyValues("springdoc.api-docs.enabled=true")
                 .run(context -> assertThat(context)
                         .doesNotHaveBean(OpenApiGroupConstants.PUBLIC_GROUP_BEAN_NAME)

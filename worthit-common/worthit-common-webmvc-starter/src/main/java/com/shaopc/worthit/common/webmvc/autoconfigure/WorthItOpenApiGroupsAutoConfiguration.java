@@ -10,10 +10,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.context.annotation.Bean;
 
 /**
- * 为 WorthIt Servlet/MVC 应用装配公网与内部 OpenAPI 分组。
+ * 为 WorthIt Servlet/MVC 应用声明 springdoc 的公网与内部文档分组。
  *
- * <p>只有显式启用 springdoc API Docs 时才创建分组，生产环境可以通过
- * 安全默认配置保持文档端点关闭。</p>
+ * <p>OpenAPI 文档扫描、模型生成、JSON 端点和 Swagger UI 均由
+ * springdoc-openapi 提供；本类不实现或替代 Swagger/OpenAPI 框架，只集中声明
+ * WorthIt 约定的 {@code public=/api/**} 与
+ * {@code internal=/internal/**} 两个 {@link GroupedOpenApi} 分组。</p>
+ *
+ * <p>只有应用显式启用 {@code springdoc.api-docs.enabled=true} 时才创建分组。
+ * 默认及生产配置保持文档端点关闭；应用也可以通过提供同名 Bean 覆盖某个分组。</p>
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -22,10 +27,10 @@ import org.springframework.context.annotation.Bean;
         prefix = "springdoc.api-docs",
         name = "enabled",
         havingValue = "true")
-public class WorthItOpenApiAutoConfiguration {
+public class WorthItOpenApiGroupsAutoConfiguration {
 
     /**
-     * 创建只包含公网接口路径的 OpenAPI 分组。
+     * 向 springdoc 注册只包含公网接口路径的文档分组。
      *
      * @return 公网 OpenAPI 分组
      */
@@ -39,7 +44,7 @@ public class WorthItOpenApiAutoConfiguration {
     }
 
     /**
-     * 创建只包含内部接口路径的 OpenAPI 分组。
+     * 向 springdoc 注册只包含内部接口路径的文档分组。
      *
      * @return 内部 OpenAPI 分组
      */

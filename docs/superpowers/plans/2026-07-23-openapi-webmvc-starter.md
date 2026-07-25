@@ -219,10 +219,10 @@ Expected: PASS，原 JSON 契约测试与新增 Schema 测试全部通过。
 
 **Files:**
 
-- Create: `worthit-common/worthit-common-webmvc-starter/src/test/java/com/shaopc/worthit/common/webmvc/autoconfigure/WorthItOpenApiAutoConfigurationTest.java`
+- Create: `worthit-common/worthit-common-webmvc-starter/src/test/java/com/shaopc/worthit/common/webmvc/autoconfigure/WorthItOpenApiGroupsAutoConfigurationTest.java`
 - Create: `worthit-common/worthit-common-webmvc-starter/src/test/java/com/shaopc/worthit/common/webmvc/openapi/OpenApiGroupingIntegrationTest.java`
 - Create: `worthit-common/worthit-common-webmvc-starter/src/main/java/com/shaopc/worthit/common/webmvc/openapi/OpenApiGroupConstants.java`
-- Create: `worthit-common/worthit-common-webmvc-starter/src/main/java/com/shaopc/worthit/common/webmvc/autoconfigure/WorthItOpenApiAutoConfiguration.java`
+- Create: `worthit-common/worthit-common-webmvc-starter/src/main/java/com/shaopc/worthit/common/webmvc/autoconfigure/WorthItOpenApiGroupsAutoConfiguration.java`
 - Create: `worthit-common/worthit-common-webmvc-starter/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
 
 **Interfaces:**
@@ -241,7 +241,7 @@ Expected: PASS，原 JSON 契约测试与新增 Schema 测试全部通过。
 private final WebApplicationContextRunner contextRunner =
         new WebApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        WorthItOpenApiAutoConfiguration.class));
+                        WorthItOpenApiGroupsAutoConfiguration.class));
 
 @Test
 void doesNotCreateGroupsWhenApiDocsAreDisabledByDefault() {
@@ -323,7 +323,7 @@ public final class OpenApiGroupConstants {
 
 每个常量写中文 Javadoc。
 
-`WorthItOpenApiAutoConfiguration`：
+`WorthItOpenApiGroupsAutoConfiguration`：
 
 ```java
 @AutoConfiguration
@@ -333,7 +333,7 @@ public final class OpenApiGroupConstants {
         prefix = "springdoc.api-docs",
         name = "enabled",
         havingValue = "true")
-public class WorthItOpenApiAutoConfiguration {
+public class WorthItOpenApiGroupsAutoConfiguration {
 
     @Bean(name = OpenApiGroupConstants.PUBLIC_GROUP_BEAN_NAME)
     @ConditionalOnMissingBean(name = OpenApiGroupConstants.PUBLIC_GROUP_BEAN_NAME)

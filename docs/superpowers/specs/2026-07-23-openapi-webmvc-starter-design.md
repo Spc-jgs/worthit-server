@@ -195,7 +195,7 @@ worthit-common-webmvc-starter
     ├── main
     │   ├── java/com/shaopc/worthit/common/webmvc
     │   │   ├── autoconfigure
-    │   │   │   └── WorthItOpenApiAutoConfiguration.java
+    │   │   │   └── WorthItOpenApiGroupsAutoConfiguration.java
     │   │   └── openapi
     │   │       └── OpenApiGroupConstants.java
     │   └── resources/META-INF/spring
