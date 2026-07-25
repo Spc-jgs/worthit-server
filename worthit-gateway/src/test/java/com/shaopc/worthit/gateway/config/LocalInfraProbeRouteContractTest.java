@@ -79,6 +79,14 @@ class LocalInfraProbeRouteContractTest {
                 .doesNotContain("delete)");
     }
 
+    @Test
+    void gatewayIncludesLoadBalancerForLbRoutes() throws IOException {
+        assertThat(read(repositoryRoot.resolve("worthit-gateway/pom.xml")))
+                .contains(
+                        "<groupId>org.springframework.cloud</groupId>",
+                        "<artifactId>spring-cloud-starter-loadbalancer</artifactId>");
+    }
+
     private void assertRoute(
             PropertySource<?> gateway,
             int index,
