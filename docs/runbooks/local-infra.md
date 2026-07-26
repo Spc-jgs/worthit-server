@@ -45,6 +45,9 @@ MySQL、Redis、Nacos、服务发现、Same-Token 和动态配置刷新验收。
 | `WORTHIT_REMINDER_DB_USERNAME`、`WORTHIT_REMINDER_DB_PASSWORD` | Reminder 数据库账号 |
 | `WORTHIT_REDIS_HOST`、`WORTHIT_REDIS_PORT`、`WORTHIT_REDIS_PASSWORD` | Redis 连接参数 |
 | `WORTHIT_SA_TOKEN_JWT_SECRET` | 四服务一致的 Sa-Token JWT Secret |
+| `WORTHIT_AUTH_LOCAL_ACCOUNT_ENABLED` | 设为 `true` 时幂等初始化本地账号 |
+| `WORTHIT_AUTH_LOCAL_USERNAME`、`WORTHIT_AUTH_LOCAL_PASSWORD` | 本地 App/H5 联调账号，密码不得写入命令历史 |
+| `WORTHIT_AUTH_LOCAL_NICKNAME` | 可选的本地账号昵称 |
 | `WORTHIT_LOG_DIR` | 本次任务专用临时日志目录 |
 
 首次建库还需要单独注入 `WORTHIT_MYSQL_ADMIN_USERNAME` 和
@@ -90,7 +93,8 @@ curl --fail-with-body \
 unset WORTHIT_MYSQL_ADMIN_PASSWORD
 ```
 
-数据库表不由管理员脚本创建。三个 App 启动时分别由 Flyway 执行 V1。
+数据库表不由管理员脚本创建。Auth 启动时由 Flyway 执行 V1、V2，Tracking 和
+Reminder 分别执行 V1。
 
 ### 3. 同步 Nacos 配置
 
@@ -161,7 +165,7 @@ bash scripts/verify-flyway-source-parity.sh
 `verify.sh` 必须完整通过，不能通过缺省变量或空成功跳过。它验证：
 
 - Nacos 服务端与控制台 readiness；
-- 三库 Flyway V1；
+- Auth Flyway V1/V2、Tracking 和 Reminder Flyway V1；
 - Redis PING 及 WorthIt Sa-Token key 存在，始终隐藏 value；
 - 四服务 liveness/readiness；
 - Nacos 中四个健康实例和端口；

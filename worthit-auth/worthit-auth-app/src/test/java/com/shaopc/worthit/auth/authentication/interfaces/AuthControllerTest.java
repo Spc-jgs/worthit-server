@@ -2,6 +2,8 @@ package com.shaopc.worthit.auth.authentication.interfaces;
 
 import com.shaopc.worthit.auth.authentication.application.AuthenticationResult;
 import com.shaopc.worthit.auth.authentication.application.AuthenticationService;
+import com.shaopc.worthit.auth.authentication.application.PasswordAuthenticationService;
+import com.shaopc.worthit.auth.authentication.application.PasswordLoginCommand;
 import com.shaopc.worthit.auth.authentication.application.port.IssuedToken;
 import com.shaopc.worthit.auth.authentication.domain.AuthUser;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
@@ -28,13 +30,17 @@ class AuthControllerTest {
 
     private final AuthenticationService authenticationService =
             mock(AuthenticationService.class);
+    private final PasswordAuthenticationService passwordAuthenticationService =
+            mock(PasswordAuthenticationService.class);
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         TraceIdGenerator traceIdGenerator = () -> TRACE_ID;
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new AuthController(authenticationService))
+                .standaloneSetup(new AuthController(
+                        authenticationService,
+                        passwordAuthenticationService))
                 .setControllerAdvice(new WorthItRestExceptionHandler(
                         new DefaultErrorHttpStatusResolver(),
                         traceIdGenerator))
@@ -78,6 +84,49 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VAL_INVALID_ARGUMENT"))
                 .andExpect(jsonPath("$.details[0].field").value("code"));
+    }
+
+    @Test
+    void returnsPasswordLoginContract() throws Exception {
+        when(passwordAuthenticationService.login(
+                new PasswordLoginCommand(
+                        "local.user", "correct-password")))
+                .thenReturn(new AuthenticationResult(
+                        new IssuedToken("token-value", 2_592_000L),
+                        new AuthUser(1938L, "本地用户", null, true),
+                        false));
+
+        mockMvc.perform(post("/api/v1/auth/password/login")
+                        .requestAttr(SecurityHeaderNames.TRACE_ID, TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "local.user",
+                                  "password": "correct-password"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.token").value("token-value"))
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.data.expiresIn").value(2_592_000))
+                .andExpect(jsonPath("$.data.user.id").value("1938"))
+                .andExpect(jsonPath("$.data.user.nickname")
+                        .value("本地用户"))
+                .andExpect(jsonPath("$.data.user.isNewUser")
+                        .doesNotExist());
+    }
+
+    @Test
+    void rejectsInvalidPasswordLoginRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/password/login")
+                        .requestAttr(SecurityHeaderNames.TRACE_ID, TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"ab","password":"short"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VAL_INVALID_ARGUMENT"));
     }
 
     @Test

@@ -34,3 +34,8 @@ worthit:
     wechat:
       app-id: ${WORTHIT_WECHAT_APP_ID}
       app-secret: ${WORTHIT_WECHAT_APP_SECRET}
+    local-account:
+      enabled: ${WORTHIT_AUTH_LOCAL_ACCOUNT_ENABLED:false}
+      username: ${WORTHIT_AUTH_LOCAL_USERNAME:}
+      password: ${WORTHIT_AUTH_LOCAL_PASSWORD:}
+      nickname: ${WORTHIT_AUTH_LOCAL_NICKNAME:本地测试用户}

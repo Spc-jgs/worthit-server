@@ -2,10 +2,13 @@ package com.shaopc.worthit.auth.authentication.infrastructure.persistence;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.shaopc.worthit.auth.authentication.application.port.AuthUserRepository;
+import com.shaopc.worthit.auth.authentication.application.port.PasswordCredentialRepository;
 import com.shaopc.worthit.auth.authentication.domain.AuthUser;
+import com.shaopc.worthit.auth.authentication.domain.PasswordCredential;
 import com.shaopc.worthit.auth.authentication.domain.WechatIdentity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -16,7 +19,8 @@ import java.util.Optional;
  */
 @Repository
 @RequiredArgsConstructor
-public class MybatisAuthUserRepository implements AuthUserRepository {
+public class MybatisAuthUserRepository implements
+        AuthUserRepository, PasswordCredentialRepository {
 
     /** 微信小程序身份类型稳定值。 */
     private static final String WECHAT_MINI = "WECHAT_MINI";
@@ -26,6 +30,7 @@ public class MybatisAuthUserRepository implements AuthUserRepository {
 
     private final AuthUserMapper userMapper;
     private final AuthExternalIdentityMapper identityMapper;
+    private final AuthPasswordCredentialMapper passwordCredentialMapper;
     private final Clock clock;
 
     @Override
@@ -73,6 +78,55 @@ public class MybatisAuthUserRepository implements AuthUserRepository {
         externalIdentity.setCreateTime(now);
         externalIdentity.setUpdateTime(now);
         identityMapper.insert(externalIdentity);
+        return toDomain(user);
+    }
+
+    @Override
+    public Optional<PasswordCredential> findByUsername(String username) {
+        AuthPasswordCredentialDO credential =
+                passwordCredentialMapper.selectOne(
+                        Wrappers.<AuthPasswordCredentialDO>lambdaQuery()
+                                .eq(AuthPasswordCredentialDO::getUsername,
+                                        username));
+        if (credential == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(
+                        userMapper.selectById(credential.getUserId()))
+                .map(user -> new PasswordCredential(
+                        toDomain(user), credential.getPasswordHash()));
+    }
+
+    @Override
+    public boolean existsByUsername(String username) {
+        return passwordCredentialMapper.exists(
+                Wrappers.<AuthPasswordCredentialDO>lambdaQuery()
+                        .eq(AuthPasswordCredentialDO::getUsername,
+                                username));
+    }
+
+    @Override
+    @Transactional
+    public AuthUser createAccount(
+            String username,
+            String passwordHash,
+            String nickname) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        AuthUserDO user = new AuthUserDO();
+        user.setNickname(nickname);
+        user.setStatus(ACTIVE);
+        user.setCreateTime(now);
+        user.setUpdateTime(now);
+        userMapper.insert(user);
+
+        AuthPasswordCredentialDO credential =
+                new AuthPasswordCredentialDO();
+        credential.setUserId(user.getId());
+        credential.setUsername(username);
+        credential.setPasswordHash(passwordHash);
+        credential.setCreateTime(now);
+        credential.setUpdateTime(now);
+        passwordCredentialMapper.insert(credential);
         return toDomain(user);
     }
 

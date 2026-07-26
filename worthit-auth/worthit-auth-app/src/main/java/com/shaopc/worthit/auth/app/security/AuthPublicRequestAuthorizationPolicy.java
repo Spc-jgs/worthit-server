@@ -12,9 +12,12 @@ public final class AuthPublicRequestAuthorizationPolicy
 
     private static final String WECHAT_LOGIN_PATH =
             "/api/v1/auth/wechat/login";
+    private static final String PASSWORD_LOGIN_PATH =
+            "/api/v1/auth/password/login";
 
     @Override
     public boolean requiresLogin(String requestPath) {
-        return !WECHAT_LOGIN_PATH.equals(requestPath);
+        return !WECHAT_LOGIN_PATH.equals(requestPath)
+                && !PASSWORD_LOGIN_PATH.equals(requestPath);
     }
 }

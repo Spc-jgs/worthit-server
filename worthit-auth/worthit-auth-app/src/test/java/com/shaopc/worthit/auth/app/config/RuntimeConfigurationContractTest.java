@@ -34,6 +34,12 @@ class RuntimeConfigurationContractTest {
                 .isEqualTo("${WORTHIT_WECHAT_APP_ID}");
         assertThat(local.getProperty("worthit.auth.wechat.app-secret"))
                 .isEqualTo("${WORTHIT_WECHAT_APP_SECRET}");
+        assertThat(local.getProperty(
+                        "worthit.auth.local-account.enabled"))
+                .isEqualTo("${WORTHIT_AUTH_LOCAL_ACCOUNT_ENABLED:false}");
+        assertThat(local.getProperty(
+                        "worthit.auth.local-account.password"))
+                .isEqualTo("${WORTHIT_AUTH_LOCAL_PASSWORD:}");
 
         assertSafeYaml("application.yml");
         assertSafeYaml("application-local-infra.yml");

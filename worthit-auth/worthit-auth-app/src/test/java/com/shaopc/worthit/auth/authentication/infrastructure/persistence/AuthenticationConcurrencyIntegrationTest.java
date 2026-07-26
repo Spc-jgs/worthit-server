@@ -3,11 +3,16 @@ package com.shaopc.worthit.auth.authentication.infrastructure.persistence;
 import com.shaopc.worthit.auth.WorthItAuthApplication;
 import com.shaopc.worthit.auth.authentication.application.AuthenticationResult;
 import com.shaopc.worthit.auth.authentication.application.AuthenticationService;
+import com.shaopc.worthit.auth.authentication.application.PasswordAuthenticationService;
+import com.shaopc.worthit.auth.authentication.application.PasswordLoginCommand;
 import com.shaopc.worthit.auth.authentication.application.WechatLoginCommand;
 import com.shaopc.worthit.auth.authentication.application.port.IssuedToken;
+import com.shaopc.worthit.auth.authentication.application.port.PasswordCredentialRepository;
+import com.shaopc.worthit.auth.authentication.application.port.PasswordHasher;
 import com.shaopc.worthit.auth.authentication.application.port.UserSession;
 import com.shaopc.worthit.auth.authentication.application.port.WechatCodeExchange;
 import com.shaopc.worthit.auth.authentication.domain.WechatIdentity;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,6 +58,15 @@ class AuthenticationConcurrencyIntegrationTest {
     private AuthenticationService authenticationService;
 
     @Autowired
+    private PasswordAuthenticationService passwordAuthenticationService;
+
+    @Autowired
+    private PasswordCredentialRepository passwordCredentialRepository;
+
+    @Autowired
+    private PasswordHasher passwordHasher;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @DynamicPropertySource
@@ -61,6 +75,13 @@ class AuthenticationConcurrencyIntegrationTest {
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
         registry.add("spring.flyway.enabled", () -> true);
+    }
+
+    @BeforeEach
+    void clearAuthenticationData() {
+        jdbcTemplate.update("DELETE FROM auth_password_credential");
+        jdbcTemplate.update("DELETE FROM auth_external_identity");
+        jdbcTemplate.update("DELETE FROM auth_user");
     }
 
     @Test
@@ -99,6 +120,32 @@ class AuthenticationConcurrencyIntegrationTest {
 
         assertThat(countRows("auth_user")).isEqualTo(1);
         assertThat(countRows("auth_external_identity")).isEqualTo(1);
+    }
+
+    @Test
+    void persistsHashedPasswordCredentialAndLogsInThroughRealRepository() {
+        passwordCredentialRepository.createAccount(
+                "local.user",
+                passwordHasher.encode("correct-password"),
+                "本地用户");
+
+        AuthenticationResult result = passwordAuthenticationService.login(
+                new PasswordLoginCommand(
+                        "LOCAL.USER", "correct-password"));
+
+        assertThat(result.user().nickname()).isEqualTo("本地用户");
+        assertThat(result.token().value())
+                .isEqualTo("token-" + result.user().id());
+        String passwordHash = jdbcTemplate.queryForObject(
+                """
+                SELECT password_hash
+                FROM auth_password_credential
+                WHERE username = 'local.user'
+                """,
+                String.class);
+        assertThat(passwordHash)
+                .startsWith("{bcrypt}")
+                .doesNotContain("correct-password");
     }
 
     private Integer countRows(String table) {

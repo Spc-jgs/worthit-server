@@ -11,8 +11,10 @@ class AuthPublicRequestAuthorizationPolicyTest {
             new AuthPublicRequestAuthorizationPolicy();
 
     @Test
-    void onlyWechatLoginPathIsAnonymous() {
+    void onlySupportedLoginPathsAreAnonymous() {
         assertThat(policy.requiresLogin("/api/v1/auth/wechat/login")).isFalse();
+        assertThat(policy.requiresLogin("/api/v1/auth/password/login"))
+                .isFalse();
         assertThat(policy.requiresLogin("/api/v1/auth/wechat/login/extra"))
                 .isTrue();
         assertThat(policy.requiresLogin("/api/v1/auth/profile")).isTrue();
