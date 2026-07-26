@@ -14,6 +14,7 @@
     <modules>
         <module>worthit-common-core</module>
         <module>worthit-common-web</module>
+        <module>worthit-common-webmvc-autoconfigure</module>
         <module>worthit-common-webmvc-starter</module>
         <module>worthit-common-security</module>
         <module>worthit-common-data</module>

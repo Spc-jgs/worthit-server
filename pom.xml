@@ -161,6 +161,11 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>worthit-common-webmvc-autoconfigure</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>worthit-common-webmvc-starter</artifactId>
                 <version>${revision}</version>
             </dependency>
