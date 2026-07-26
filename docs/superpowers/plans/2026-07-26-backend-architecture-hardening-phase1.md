@@ -242,7 +242,7 @@ git diff --cached --stat
 git commit -m "fix(security): 修复 Same-Token 局部覆盖装配"
 ```
 
-Expected: 提交只包含本任务列出的八个路径。
+Expected: 提交只包含本任务列出的七个路径。
 
 ---
 
