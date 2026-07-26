@@ -283,7 +283,7 @@ assertThat(loginFailureBodyTraceId).isEqualTo("trace-gateway");
 
 ```bash
 mvn -pl worthit-common/worthit-common-webmvc-autoconfigure -am \
-  -Dtest='*FilterTest,*AutoConfigurationTest' \
+  -Dtest='*Filter*Test,*AutoConfigurationTest' \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
