@@ -35,6 +35,14 @@ public interface CategoryRepository {
     Category create(long userId, String name);
 
     /**
+     * 获取用户系统“未分类”，不存在时创建。
+     *
+     * @param userId 用户标识
+     * @return 用户唯一的有效“未分类”
+     */
+    Category getOrCreateUncategorized(long userId);
+
+    /**
      * 判断分类是否仍被有效业务数据引用。
      *
      * @param categoryId 分类标识

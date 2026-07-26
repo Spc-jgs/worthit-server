@@ -1,9 +1,9 @@
-package com.shaopc.worthit.tracking.category.application;
+package com.shaopc.worthit.tracking.security;
 
 import com.shaopc.worthit.common.security.context.UserContext;
 
 /**
- * 向分类用例提供可信的当前用户上下文。
+ * 向 Tracking 用例提供可信的当前用户上下文。
  */
 @FunctionalInterface
 public interface CurrentUserProvider {

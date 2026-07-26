@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.time.Clock;
@@ -47,10 +48,35 @@ public class MybatisCategoryRepository implements CategoryRepository {
 
     @Override
     public Category create(long userId, String name) {
+        return create(userId, name, null);
+    }
+
+    @Override
+    public Category getOrCreateUncategorized(long userId) {
+        Optional<Category> existing =
+                findBySystemCode(userId, Category.UNCATEGORIZED);
+        if (existing.isPresent()) {
+            return existing.orElseThrow();
+        }
+        try {
+            return create(
+                    userId,
+                    "未分类",
+                    Category.UNCATEGORIZED);
+        } catch (DuplicateKeyException exception) {
+            return findBySystemCode(
+                            userId, Category.UNCATEGORIZED)
+                    .orElseThrow(() -> exception);
+        }
+    }
+
+    private Category create(
+            long userId, String name, String systemCode) {
         LocalDateTime now = LocalDateTime.now(trackingClock);
         CategoryDO category = new CategoryDO();
         category.setUserId(userId);
         category.setName(name);
+        category.setSystemCode(systemCode);
         category.setVersion(1L);
         category.setCreateBy(userId);
         category.setCreateTime(now);
@@ -59,6 +85,16 @@ public class MybatisCategoryRepository implements CategoryRepository {
         category.setDelFlag(false);
         categoryMapper.insert(category);
         return toDomain(category);
+    }
+
+    private Optional<Category> findBySystemCode(
+            long userId, String systemCode) {
+        CategoryDO category = categoryMapper.selectOne(
+                Wrappers.<CategoryDO>lambdaQuery()
+                        .eq(CategoryDO::getUserId, userId)
+                        .eq(CategoryDO::getSystemCode, systemCode)
+                        .eq(CategoryDO::getDelFlag, false));
+        return Optional.ofNullable(category).map(this::toDomain);
     }
 
     @Override

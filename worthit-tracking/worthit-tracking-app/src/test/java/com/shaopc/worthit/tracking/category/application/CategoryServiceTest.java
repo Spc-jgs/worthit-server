@@ -6,6 +6,7 @@ import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryErrorCode;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
@@ -149,6 +150,24 @@ class CategoryServiceTest {
                     new Category(nextId++, userId, name, null);
             categories.add(created);
             return created;
+        }
+
+        @Override
+        public Category getOrCreateUncategorized(long userId) {
+            return categories.stream()
+                    .filter(category -> category.userId() == userId)
+                    .filter(category -> Category.UNCATEGORIZED.equals(
+                            category.systemCode()))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        Category created = new Category(
+                                nextId++,
+                                userId,
+                                "未分类",
+                                Category.UNCATEGORIZED);
+                        categories.add(created);
+                        return created;
+                    });
         }
 
         @Override

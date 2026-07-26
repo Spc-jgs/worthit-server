@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.category.infrastructure.persistence;
+package com.shaopc.worthit.tracking.bootstrap;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,10 +7,10 @@ import java.time.Clock;
 import java.time.ZoneId;
 
 /**
- * 分类持久化时间配置。
+ * Tracking 业务时间配置。
  */
 @Configuration(proxyBeanMethods = false)
-public class CategoryPersistenceConfiguration {
+public class TrackingClockConfiguration {
 
     private static final ZoneId BUSINESS_ZONE =
             ZoneId.of("Asia/Shanghai");

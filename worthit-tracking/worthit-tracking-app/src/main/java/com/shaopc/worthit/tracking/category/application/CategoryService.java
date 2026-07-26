@@ -5,6 +5,7 @@ import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryErrorCode;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;

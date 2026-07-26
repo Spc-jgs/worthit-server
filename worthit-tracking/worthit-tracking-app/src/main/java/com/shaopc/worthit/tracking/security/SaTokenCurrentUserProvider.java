@@ -1,8 +1,7 @@
-package com.shaopc.worthit.tracking.category.infrastructure.security;
+package com.shaopc.worthit.tracking.security;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.shaopc.worthit.common.security.context.UserContext;
-import com.shaopc.worthit.tracking.category.application.CurrentUserProvider;
 import org.springframework.stereotype.Component;
 
 /**
