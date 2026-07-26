@@ -216,10 +216,13 @@ Verifier 的 Same-Token Redis 兼容测试全部通过。
 Run:
 
 ```bash
-rg -n "SaTokenSameTokenService" .
+rg -n "SaTokenSameTokenService" . \
+  --glob '!docs/**' \
+  --glob '!**/target/**'
 ```
 
-Expected: 无输出，退出码为 1。
+Expected: 生产源码和测试源码中无输出，退出码为 1。设计与计划文档可以保留对
+旧类名的迁移说明，构建目录中的历史产物不参与源码检查。
 
 - [ ] **Step 8: 精确提交 Same-Token 修复**
 
