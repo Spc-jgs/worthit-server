@@ -3,7 +3,6 @@ package com.shaopc.worthit.gateway.security;
 import cn.dev33.satoken.context.SaHolder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.security.error.SecurityErrorCode;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.web.response.ApiResponse;
@@ -22,21 +21,15 @@ import java.util.Objects;
 public final class GatewaySecurityErrorWriter {
 
     private final ObjectMapper objectMapper;
-    private final TraceIdGenerator traceIdGenerator;
 
     /**
      * 创建 Gateway 认证错误写入器。
      *
-     * @param objectMapper     统一响应序列化器
-     * @param traceIdGenerator TraceId 生成器
+     * @param objectMapper 统一响应序列化器
      */
-    public GatewaySecurityErrorWriter(
-            ObjectMapper objectMapper,
-            TraceIdGenerator traceIdGenerator) {
+    public GatewaySecurityErrorWriter(ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(
                 objectMapper, "ObjectMapper不能为空");
-        this.traceIdGenerator = Objects.requireNonNull(
-                traceIdGenerator, "TraceId生成器不能为空");
     }
 
     /**
@@ -46,7 +39,9 @@ public final class GatewaySecurityErrorWriter {
      * @return 统一 JSON 响应体
      */
     public String unauthorized(Throwable ignored) {
-        String traceId = requireTraceId(traceIdGenerator.generate());
+        String traceId = requireTraceId(
+                SaHolder.getRequest().getHeader(
+                        SecurityHeaderNames.TRACE_ID));
         ServerHttpResponse response = (ServerHttpResponse)
                 SaHolder.getResponse().getSource();
         response.setStatusCode(HttpStatus.UNAUTHORIZED);

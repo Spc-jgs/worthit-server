@@ -21,6 +21,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +30,7 @@ class GatewaySaTokenSecurityTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final GatewaySecurityErrorWriter errorWriter =
-            new GatewaySecurityErrorWriter(objectMapper, () -> "trace-generated");
+            new GatewaySecurityErrorWriter(objectMapper);
     private final SaReactorFilter filter =
             new GatewaySaTokenConfiguration().saReactorFilter(errorWriter);
 
@@ -41,29 +42,40 @@ class GatewaySaTokenSecurityTest {
     @Test
     void rejectsMissingLoginWithUnifiedUnauthorizedResponse() throws Exception {
         AtomicBoolean reached = new AtomicBoolean();
+        AtomicInteger generated = new AtomicInteger();
+        TrustedHeadersGlobalFilter trustedHeaders =
+                new TrustedHeadersGlobalFilter(
+                        () -> {
+                            generated.incrementAndGet();
+                            return "trace-trusted";
+                        },
+                        () -> "same-token-trusted");
         MockServerWebExchange exchange = exchange("/api/v1/items");
 
-        withLoginState(false, () -> StepVerifier.create(filter.filter(
+        withLoginState(false, () -> StepVerifier.create(trustedHeaders.filter(
                         exchange,
-                        ignored -> {
-                            reached.set(true);
-                            return Mono.empty();
-                        }))
+                        trustedExchange -> filter.filter(
+                                trustedExchange,
+                                ignored -> {
+                                    reached.set(true);
+                                    return Mono.empty();
+                                })))
                 .verifyComplete());
 
         JsonNode body = objectMapper.readTree(
                 exchange.getResponse().getBodyAsString().block());
         assertThat(reached).isFalse();
+        assertThat(generated).hasValue(1);
         assertThat(exchange.getResponse().getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(exchange.getResponse().getHeaders()
                 .getFirst(SecurityHeaderNames.TRACE_ID))
-                .isEqualTo("trace-generated");
+                .isEqualTo("trace-trusted");
         assertThat(body.path("success").booleanValue()).isFalse();
         assertThat(body.path("code").textValue())
                 .isEqualTo("AUTH_UNAUTHORIZED");
         assertThat(body.path("traceId").textValue())
-                .isEqualTo("trace-generated");
+                .isEqualTo("trace-trusted");
         assertThat(body.toString())
                 .doesNotContain("NotLoginException", "token-forged");
     }
@@ -118,12 +130,12 @@ class GatewaySaTokenSecurityTest {
                         .header(SecurityHeaderNames.TRACE_ID, "trace-forged")
                         .build());
 
-        withLoginState(false, () -> StepVerifier.create(filter.filter(
+        withLoginState(false, () -> StepVerifier.create(trustedHeaders.filter(
                         exchange,
-                        authenticatedExchange -> trustedHeaders.filter(
-                                authenticatedExchange,
-                                trustedExchange -> {
-                                    downstream.set(trustedExchange);
+                        trustedExchange -> filter.filter(
+                                trustedExchange,
+                                authenticatedExchange -> {
+                                    downstream.set(authenticatedExchange);
                                     return Mono.empty();
                                 })))
                 .verifyComplete());
