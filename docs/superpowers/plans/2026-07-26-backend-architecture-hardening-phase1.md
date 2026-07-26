@@ -484,16 +484,17 @@ Expected: PASS；合法夹具通过，WebFlux 夹具被拒绝。
 
 - [ ] **Step 4: 先用测试暴露 Tracking 漏扫 infrastructure**
 
-把 `TrackingAppArchitectureTest` 改为 ArchUnit JUnit 形式，但先保留错误的扫描包：
+保持现有 JUnit 形式，增加基础设施覆盖断言，但先保留错误的扫描包：
 
 ```java
-@AnalyzeClasses(
-        packages = "com.shaopc.worthit.tracking.app",
-        importOptions = ImportOption.DoNotIncludeTests.class)
 class TrackingAppArchitectureTest {
 
-    @ArchTest
-    static void importsTrackingInfrastructure(JavaClasses classes) {
+    @Test
+    void importsTrackingInfrastructure() {
+        JavaClasses classes = new ClassFileImporter()
+                .withImportOption(new ImportOption.DoNotIncludeTests())
+                .importPackages("com.shaopc.worthit.tracking.app");
+
         assertThat(classes.stream().map(JavaClass::getName))
                 .contains(ReminderClientConfiguration.class.getName());
     }
@@ -512,36 +513,38 @@ Expected: FAIL；当前只导入 `com.shaopc.worthit.tracking.app`，不包含�
 
 - [ ] **Step 5: 三个 App 改为扫描完整服务根包**
 
-三个测试分别使用：
+三个测试继续使用 JUnit 和 `ClassFileImporter`，分别导入：
 
 ```java
-@AnalyzeClasses(
-        packages = "com.shaopc.worthit.auth",
-        importOptions = ImportOption.DoNotIncludeTests.class)
+new ClassFileImporter()
+        .withImportOption(new ImportOption.DoNotIncludeTests())
+        .importPackages("com.shaopc.worthit.auth");
 ```
 
 ```java
-@AnalyzeClasses(
-        packages = "com.shaopc.worthit.tracking",
-        importOptions = ImportOption.DoNotIncludeTests.class)
+new ClassFileImporter()
+        .withImportOption(new ImportOption.DoNotIncludeTests())
+        .importPackages("com.shaopc.worthit.tracking");
 ```
 
 ```java
-@AnalyzeClasses(
-        packages = "com.shaopc.worthit.reminder",
-        importOptions = ImportOption.DoNotIncludeTests.class)
+new ClassFileImporter()
+        .withImportOption(new ImportOption.DoNotIncludeTests())
+        .importPackages("com.shaopc.worthit.reminder");
 ```
 
 每个测试执行共享规则：
 
 ```java
-@ArchTest
-static final ArchRule servletAppMustNotDependOnReactiveRuntime =
-        WorthItArchitectureRules
-                .SERVLET_APPS_MUST_NOT_DEPEND_ON_REACTIVE_RUNTIME;
+WorthItArchitectureRules
+        .SERVLET_APPS_MUST_NOT_DEPEND_ON_REACTIVE_RUNTIME
+        .check(classes);
 ```
 
-并保留一个 `JavaClasses` 非空断言。Tracking 额外保留 `importsTrackingInfrastructure`，防止以后扫描范围再次退回 `.app`。
+并保留一个 `JavaClasses` 非空断言。Tracking 额外保留
+`importsTrackingInfrastructure`，防止以后扫描范围再次退回 `.app`。三个 App
+不新增 `archunit-junit5` 依赖；只有已经显式声明该依赖的 Reminder Client 使用
+`@AnalyzeClasses` 和 `@ArchTest`。
 
 - [ ] **Step 6: 启用 Reminder Client 纯契约规则**
 
