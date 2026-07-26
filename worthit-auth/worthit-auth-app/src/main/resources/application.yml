@@ -5,6 +5,9 @@ spring:
 server:
   port: 18081
 
+sa-token:
+  timeout: 2592000
+
 management:
   endpoint:
     health:

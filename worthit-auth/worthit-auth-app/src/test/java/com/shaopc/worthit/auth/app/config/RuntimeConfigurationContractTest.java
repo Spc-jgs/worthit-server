@@ -20,6 +20,7 @@ class RuntimeConfigurationContractTest {
 
         assertThat(base.getProperty("spring.application.name")).isEqualTo("worthit-auth");
         assertThat(base.getProperty("server.port")).isEqualTo(18081);
+        assertThat(base.getProperty("sa-token.timeout")).isEqualTo(2592000);
         assertThat(base.getProperty("management.endpoint.health.probes.enabled")).isEqualTo(true);
         assertThat(local.getProperty("spring.config.import[0]"))
                 .asString()
@@ -29,6 +30,10 @@ class RuntimeConfigurationContractTest {
         assertThat(local.getProperty("spring.datasource.url"))
                 .asString()
                 .contains("/worthit_auth");
+        assertThat(local.getProperty("worthit.auth.wechat.app-id"))
+                .isEqualTo("${WORTHIT_WECHAT_APP_ID}");
+        assertThat(local.getProperty("worthit.auth.wechat.app-secret"))
+                .isEqualTo("${WORTHIT_WECHAT_APP_SECRET}");
 
         assertSafeYaml("application.yml");
         assertSafeYaml("application-local-infra.yml");

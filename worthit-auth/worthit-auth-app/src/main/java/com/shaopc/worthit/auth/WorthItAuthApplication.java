@@ -1,4 +1,4 @@
-package com.shaopc.worthit.auth.app;
+package com.shaopc.worthit.auth;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

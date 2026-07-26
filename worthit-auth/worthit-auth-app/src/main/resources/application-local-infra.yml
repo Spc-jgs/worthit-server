@@ -28,3 +28,9 @@ spring:
 sa-token:
   token-name: worthit-token
   jwt-secret-key: ${WORTHIT_SA_TOKEN_JWT_SECRET}
+
+worthit:
+  auth:
+    wechat:
+      app-id: ${WORTHIT_WECHAT_APP_ID}
+      app-secret: ${WORTHIT_WECHAT_APP_SECRET}

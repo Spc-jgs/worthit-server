@@ -1,6 +1,6 @@
 package com.shaopc.worthit.auth.app.config;
 
-import com.shaopc.worthit.auth.app.WorthItAuthApplication;
+import com.shaopc.worthit.auth.WorthItAuthApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
 
