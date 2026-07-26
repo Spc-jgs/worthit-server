@@ -22,6 +22,11 @@ class CommonArchitectureTest {
             WorthItArchitectureRules.COMMON_WEB_MUST_STAY_RUNTIME_NEUTRAL;
 
     @ArchTest
+    static final ArchRule webMvcAutoconfigureMustStayServletOnly =
+            WorthItArchitectureRules
+                    .WEBMVC_AUTOCONFIGURE_MUST_STAY_SERVLET_ONLY;
+
+    @ArchTest
     static void importsProductionCommonClasses(JavaClasses classes) {
         assertThat(classes).isNotEmpty();
     }

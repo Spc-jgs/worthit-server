@@ -17,10 +17,6 @@
         </dependency>
         <dependency>
             <groupId>com.shaopc.worthit</groupId>
-            <artifactId>worthit-common-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.shaopc.worthit</groupId>
             <artifactId>worthit-common-data</artifactId>
         </dependency>
         <dependency>

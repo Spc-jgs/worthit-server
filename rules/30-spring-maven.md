@@ -10,8 +10,9 @@
 - 多个 App 共用的运行时技术装配使用 Spring Boot `@AutoConfiguration`，
   并登记在
   `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`；
-  使用 classpath 条件限制生效范围，并用 `@ConditionalOnMissingBean` 为应用级
-  覆盖让路。业务 App 不手动 `@Import` 此类通用自动配置。
+  同时使用运行模型、classpath 和类型安全属性条件限制生效范围，并用
+  `@ConditionalOnMissingBean` 为应用级覆盖让路。每项能力必须能独立启停；
+  业务 App 不手动 `@Import` 此类通用自动配置。
 
 Spring Boot 3.5 官方文档推荐构造器注入，因为它允许依赖字段保持不可变。参考：
 
@@ -56,12 +57,15 @@ Spring Boot 3.5 官方文档推荐构造器注入，因为它允许依赖字段�
 - Gateway 负责清洗不可信身份头和 TraceId；下游不直接信任外部同名请求头。
 - `/internal/**` 不配置公网路由，内部鉴权失败不得进入 Application 成功路径。
 - Auth、Tracking、Reminder 通过 `worthit-common-webmvc-starter` 接入
-  Spring MVC、Bean Validation、springdoc 和共同的 Servlet 安全运行时，不在
-  三个 App 复制 Filter、Sa-Token 或默认安全 Bean；服务专属放行策略仍由 App
-  显式提供。
+  Spring MVC、Bean Validation、springdoc、统一异常映射和共同的 Servlet
+  安全运行时；Starter 只聚合依赖，Java 实现和自动配置 imports 全部属于
+  `worthit-common-webmvc-autoconfigure`。三个 App 不复制 Filter、Controller
+  Advice、Sa-Token 或默认安全 Bean；服务专属放行策略、领域错误码和必要的
+  HTTP 状态解析覆盖仍由 App 显式提供。
 - 纯契约 Client 使用 `spring-web` 声明 HTTP Interface，不引入
   `spring-boot-starter-web`、springdoc、Servlet 或内嵌服务器。
-- Gateway 禁止依赖 `worthit-common-webmvc-starter` 或
+- Gateway 禁止依赖 `worthit-common-webmvc-starter`、
+  `worthit-common-webmvc-autoconfigure` 或
   `spring-boot-starter-web`，避免 WebFlux/Servlet 运行栈混用。
 - OpenAPI 默认及生产环境关闭，`local`、`dev`、`test` 显式开启；
   `springdoc.enable-default-api-docs=false` 固定关闭全量默认文档。
@@ -106,6 +110,8 @@ Spring Boot 3.5 官方文档推荐构造器注入，因为它允许依赖字段�
 - 新增 Common 需要至少两个真实使用者，且提取内容技术中立。
 - 新增 Client 需要真实的内部调用方，由服务提供方拥有。
 - 新增 Starter 或自动配置需要多个真实 App 重复同一运行时装配；不能混入基础 Client。
+- Starter 不承载实现、资源或自动配置登记；autoconfigure 的可选集成依赖不得
+  被 Starter 强制传递给不使用该能力的 App。
 - `worthit-common-data` 的 MyBatis-Plus 技术基线随依赖自动生效；Auth、
   Tracking、Reminder 不声明手动导入或重复插件 Bean。
 - 新增聚合层、工具模块或抽象接口前，必须证明现有边界无法承载。

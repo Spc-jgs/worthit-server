@@ -4,6 +4,8 @@ import com.shaopc.worthit.common.fixture.CommonDependsOnTrackingFixture;
 import com.shaopc.worthit.common.fixture.ValidCommonFixture;
 import com.shaopc.worthit.common.web.fixture.CommonWebDependsOnWebFluxFixture;
 import com.shaopc.worthit.common.web.fixture.ValidCommonWebRuntimeNeutralFixture;
+import com.shaopc.worthit.common.webmvc.fixture.ValidWebMvcServletFixture;
+import com.shaopc.worthit.common.webmvc.fixture.WebMvcDependsOnWebFluxFixture;
 import com.shaopc.worthit.reminder.app.fixture.ReminderAppFixture;
 import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnAppFixture;
 import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnBootFixture;
@@ -189,6 +191,31 @@ class WorthItArchitectureRulesTest {
         assertThatThrownBy(
                         () -> WorthItArchitectureRules.COMMON_WEB_MUST_STAY_RUNTIME_NEUTRAL
                                 .check(classes))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("org.springframework.web.reactive");
+    }
+
+    @Test
+    void webMvcAutoconfigureRuleAcceptsServletDependency() {
+        JavaClasses classes = importer.importClasses(
+                ValidWebMvcServletFixture.class);
+
+        assertThatCode(() ->
+                WorthItArchitectureRules
+                        .WEBMVC_AUTOCONFIGURE_MUST_STAY_SERVLET_ONLY
+                        .check(classes))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void webMvcAutoconfigureRuleRejectsWebFluxDependency() {
+        JavaClasses classes = importer.importClasses(
+                WebMvcDependsOnWebFluxFixture.class);
+
+        assertThatThrownBy(() ->
+                WorthItArchitectureRules
+                        .WEBMVC_AUTOCONFIGURE_MUST_STAY_SERVLET_ONLY
+                        .check(classes))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("org.springframework.web.reactive");
     }

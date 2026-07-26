@@ -7,6 +7,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 class AuthAppArchitectureTest {
 
@@ -20,6 +21,14 @@ class AuthAppArchitectureTest {
         WorthItArchitectureRules
                 .SERVLET_APPS_MUST_NOT_DEPEND_ON_REACTIVE_RUNTIME
                 .check(importProductionClasses());
+    }
+
+    @Test
+    void authAppReceivesWebMvcAutoconfigureThroughStarter() {
+        assertThatCode(() -> Class.forName(
+                "com.shaopc.worthit.common.webmvc.autoconfigure."
+                        + "WorthItTraceAutoConfiguration"))
+                .doesNotThrowAnyException();
     }
 
     private static JavaClasses importProductionClasses() {

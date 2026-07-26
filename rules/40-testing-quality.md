@@ -63,15 +63,22 @@ Phase 0 至少使用 ArchUnit 或等价可执行检查覆盖：
 - App 不直接依赖另一服务 App；
 - Persistence DO 和 Mapper 不泄漏到 Domain、Client 或公网 Response。
 - Common 自动配置必须覆盖 classpath 自动发现、默认 Bean、应用自定义 Bean
-  回退和关键插件顺序；消费 App 必须验证入口不再手动导入通用自动配置。
+  回退、属性关闭、非目标运行模型和关键过滤器顺序；消费 App 必须验证通过
+  Starter 获得 autoconfigure，且入口不再手动导入通用自动配置。
+- 统一 MVC 异常测试至少覆盖参数绑定、Bean Validation、业务错误、安全错误、
+  下游失败、资源不存在和未知异常；断言 HTTP、稳定 code、TraceId 头/body
+  一致，并证明未知异常不泄露内部消息。
 
 依赖树审阅用于补充 ArchUnit，确认没有通过传递依赖绕过边界。
 
 Web 运行栈依赖树还必须确认：
 
 - `reminder-client` 不含 Spring Boot Starter、springdoc、Servlet 或 Tomcat；
-- Gateway 不含 `common-webmvc-starter`、`spring-webmvc` 或 Tomcat；
+- Gateway 不含 `common-webmvc-starter`、`common-webmvc-autoconfigure`、
+  `spring-webmvc` 或 Tomcat；
 - `common-web` 不含 MVC、WebFlux、Servlet、Tomcat 或 springdoc runtime。
+- `common-webmvc-starter` 产物不含 WorthIt Java 实现或自动配置 imports；
+  三个 Servlet App 通过 Starter 获得 autoconfigure，但不直接复制其依赖。
 
 ## 技术门禁
 

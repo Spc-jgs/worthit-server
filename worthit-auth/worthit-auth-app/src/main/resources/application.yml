@@ -34,3 +34,7 @@ springdoc:
   swagger-ui:
     enabled: true
   enable-default-api-docs: false
+worthit:
+  web:
+    openapi:
+      enabled: true

@@ -120,6 +120,20 @@ public final class WorthItArchitectureRules {
                     .allowEmptyShould(false)
                     .as("Common Web 必须保持运行时中立");
 
+    /**
+     * WebMVC 自动配置不得反向引入 WebFlux 运行时。
+     */
+    public static final ArchRule
+            WEBMVC_AUTOCONFIGURE_MUST_STAY_SERVLET_ONLY =
+            noClasses()
+                    .that().resideInAPackage(
+                            "com.shaopc.worthit.common.webmvc..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.web.reactive..",
+                            "org.springframework.web.server..")
+                    .allowEmptyShould(false)
+                    .as("WebMVC 自动配置必须保持 Servlet 单一运行栈");
+
     private WorthItArchitectureRules() {
     }
 }

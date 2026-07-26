@@ -19,6 +19,7 @@ Phase 0 只包含：
 
 - `worthit-common-core`
 - `worthit-common-web`
+- `worthit-common-webmvc-autoconfigure`
 - `worthit-common-webmvc-starter`
 - `worthit-common-security`
 - `worthit-common-data`
@@ -31,10 +32,12 @@ Common 不依赖业务 App、业务 Client、业务 DTO 或具体服务实现：
 
 - `common-core` 不放用户、物品、订阅、想买或提醒状态。
 - `common-web` 不放具体 Controller、Gateway Filter 或页面模型。
-- `common-webmvc-starter` 装配三个 Servlet/MVC App 共用的 Web、校验、
-  OpenAPI 和技术性安全运行基线，可以包含通用 Servlet Filter、Sa-Token
-  运行时与可覆盖的默认安全策略；不放业务 Controller、业务错误码或服务专属
-  放行策略。
+- `common-webmvc-autoconfigure` 承载三个 Servlet/MVC App 共用的类型安全配置、
+  条件化自动配置、Servlet Filter、统一异常映射、OpenAPI 分组和可覆盖的默认
+  安全策略；生产类只能位于 `com.shaopc.worthit.common.webmvc..`，不放业务
+  Controller、领域错误码或服务专属放行策略。
+- `common-webmvc-starter` 只聚合 autoconfigure、Spring MVC、Bean Validation、
+  springdoc 与 Sa-Token 运行时依赖，不包含 Java 实现或自动配置 imports。
 - `common-security` 不放用户表、微信协议或某个运行模型的过滤器。
 - `common-data` 通过 Spring Boot 自动装配提供多个业务 App 共用的
   MyBatis-Plus 技术基线；业务 App 引入依赖后不得再手动 `@Import` 通用数据
@@ -71,11 +74,12 @@ Client 禁止包含：
 - Gateway 使用 Spring Cloud Gateway 和 WebFlux。
 - Auth、Tracking、Reminder 使用 Spring MVC/Servlet，并可使用 JDBC、MyBatis 和本地事务。
 - Auth、Tracking、Reminder 通过 `common-webmvc-starter` 复用 Spring MVC、
-  Bean Validation 和 OpenAPI 装配。
-- 具体 Controller、业务异常适配和服务专属安全策略仍留在各自 App；三个 App
-  不复制相同的 Servlet Filter 或 Sa-Token 运行时装配。
+  Bean Validation、统一异常映射、安全过滤链和 OpenAPI 装配。
+- Common 统一参数、安全、资源、下游与未知系统异常的协议映射；各 App 只拥有
+  领域错误码、服务专属匿名路径策略和必要的 HTTP 状态解析覆盖，不复制相同的
+  Servlet Filter、Controller Advice 或 Sa-Token 运行时装配。
 - Gateway、Client、`common-core` 和中立的 `common-web` 禁止依赖
-  `common-webmvc-starter`。
+  `common-webmvc-starter` 或 `common-webmvc-autoconfigure`。
 - Gateway 的 WebFlux Filter、异常适配和安全配置留在 Gateway。
 - 不把两个运行模型的实现细节塞进 Common，也不在业务服务中引入 WebFlux 作为默认编程模型。
 
