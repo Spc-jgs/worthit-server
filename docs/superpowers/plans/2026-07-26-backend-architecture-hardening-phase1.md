@@ -182,14 +182,19 @@ assertThat(context).hasSingleBean(SameTokenVerifier.class);
 return new SaTokenSameTokenProvider();
 ```
 
-`GatewaySaTokenRedisCompatibilityTest` 仅验证取 Token，因此把局部变量类型改为：
+`GatewaySaTokenRedisCompatibilityTest` 当前同时验证取 Token 和校验 Token。拆分后
+必须继续覆盖两个职责，分别创建：
 
 ```java
 SaTokenSameTokenProvider sameTokenProvider =
         new SaTokenSameTokenProvider();
+SaTokenSameTokenVerifier sameTokenVerifier =
+        new SaTokenSameTokenVerifier();
 ```
 
-并调用 `sameTokenProvider.currentToken()`；不得为 Gateway 引入 Verifier。
+断言 `sameTokenProvider.currentToken()` 返回 Redis 中的当前 Token，并断言
+`sameTokenVerifier.verify(token)` 不抛异常。Verifier 只出现在兼容性测试中；
+不得为 Gateway 生产配置引入 Verifier Bean。
 
 - [ ] **Step 6: 验证 Same-Token GREEN**
 
@@ -203,7 +208,8 @@ worthit-gateway \
   -am test
 ```
 
-Expected: PASS；三个覆盖组合、Starter 默认装配和 Gateway Same-Token Redis 兼容测试全部通过。
+Expected: PASS；三个覆盖组合、Starter 默认装配，以及 Gateway 对 Provider 和
+Verifier 的 Same-Token Redis 兼容测试全部通过。
 
 - [ ] **Step 7: 检查旧组合实现已完全移除**
 
