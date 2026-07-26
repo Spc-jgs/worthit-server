@@ -107,6 +107,15 @@ Run:
 mvn -pl \
   worthit-common/worthit-common-webmvc-autoconfigure,\
 worthit-common/worthit-common-webmvc-starter,\
+worthit-gateway,\
+worthit-auth/worthit-auth-app,\
+worthit-tracking/worthit-tracking-app,\
+worthit-reminder/worthit-reminder-client,\
+worthit-reminder/worthit-reminder-app \
+  -am -DskipTests install
+mvn -pl \
+  worthit-common/worthit-common-webmvc-autoconfigure,\
+worthit-common/worthit-common-webmvc-starter,\
 worthit-auth/worthit-auth-app,\
   worthit-tracking/worthit-tracking-app,\
 worthit-reminder/worthit-reminder-app \
@@ -509,7 +518,7 @@ worthit-common/worthit-common-webmvc-starter,\
 worthit-gateway,\
 worthit-auth/worthit-auth-app,\
 worthit-tracking/worthit-tracking-app,\
-worthit-reminder/worthit-reminder-client,\
+  worthit-reminder/worthit-reminder-client,\
 worthit-reminder/worthit-reminder-app \
   -am dependency:tree
 mvn -pl \
@@ -523,6 +532,8 @@ worthit-reminder/worthit-reminder-app \
 ```
 
 Expected: PASS；WebFlux/Servlet、Client、Common 与新模块边界均未被绕过。
+先执行 install 是因为 `dependency:tree` 不会自行打包 Reactor 中尚未安装的新模块；
+树分析仍必须从根 Reactor 执行，不能从子模块目录单独解析 `${revision}` 父版本。
 
 - [ ] **Step 5: 执行批次二总门禁**
 
