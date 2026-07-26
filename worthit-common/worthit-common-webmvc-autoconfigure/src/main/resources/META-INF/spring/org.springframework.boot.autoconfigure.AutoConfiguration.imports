@@ -1,2 +1,3 @@
-com.shaopc.worthit.common.webmvc.autoconfigure.WorthItOpenApiGroupsAutoConfiguration
+com.shaopc.worthit.common.webmvc.autoconfigure.WorthItTraceAutoConfiguration
 com.shaopc.worthit.common.webmvc.autoconfigure.WorthItMvcSecurityAutoConfiguration
+com.shaopc.worthit.common.webmvc.autoconfigure.WorthItOpenApiGroupsAutoConfiguration

@@ -4,25 +4,35 @@ import cn.dev33.satoken.jwt.StpLogicJwtForSimple;
 import cn.dev33.satoken.stp.StpLogic;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
-import com.shaopc.worthit.common.core.trace.UuidTraceIdGenerator;
 import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenProvider;
 import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenVerifier;
 import com.shaopc.worthit.common.security.sametoken.SameTokenProvider;
 import com.shaopc.worthit.common.security.sametoken.SameTokenVerifier;
+import com.shaopc.worthit.common.webmvc.config.WorthItSecurityProperties;
 import com.shaopc.worthit.common.webmvc.security.PublicRequestAuthorizationPolicy;
 import com.shaopc.worthit.common.webmvc.security.SaTokenUserLoginVerifier;
 import com.shaopc.worthit.common.webmvc.security.TrustedSourceFilter;
 import com.shaopc.worthit.common.webmvc.security.UserLoginVerifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
 /**
  * 三个 Servlet App 共用的安全运行时自动配置。
  */
-@AutoConfiguration
+@AutoConfiguration(after = WorthItTraceAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnClass(StpLogic.class)
+@ConditionalOnProperty(
+        prefix = "worthit.security.mvc",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true)
+@EnableConfigurationProperties(WorthItSecurityProperties.class)
 public class WorthItMvcSecurityAutoConfiguration {
 
     /**
@@ -56,17 +66,6 @@ public class WorthItMvcSecurityAutoConfiguration {
     @ConditionalOnMissingBean(SameTokenVerifier.class)
     SaTokenSameTokenVerifier saTokenSameTokenVerifier() {
         return new SaTokenSameTokenVerifier();
-    }
-
-    /**
-     * 提供安全失败场景使用的 TraceId 生成器。
-     *
-     * @return UUID TraceId 生成器
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    TraceIdGenerator traceIdGenerator() {
-        return new UuidTraceIdGenerator();
     }
 
     /**

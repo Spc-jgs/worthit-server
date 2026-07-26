@@ -4,6 +4,7 @@ import com.shaopc.worthit.common.webmvc.openapi.OpenApiGroupConstants;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
@@ -28,7 +29,9 @@ class WorthItOpenApiGroupsAutoConfigurationTest {
     @Test
     void createsPublicAndInternalGroupsWhenEnabled() {
         webContextRunner
-                .withPropertyValues("springdoc.api-docs.enabled=true")
+                .withPropertyValues(
+                        "worthit.web.openapi.enabled=true",
+                        "springdoc.api-docs.enabled=true")
                 .run(context -> {
                     assertThat(context)
                             .hasBean(OpenApiGroupConstants.PUBLIC_GROUP_BEAN_NAME)
@@ -45,6 +48,17 @@ class WorthItOpenApiGroupsAutoConfigurationTest {
     }
 
     @Test
+    void doesNotCreateGroupsWhenOnlySpringdocIsEnabled() {
+        webContextRunner
+                .withPropertyValues("springdoc.api-docs.enabled=true")
+                .run(context -> assertThat(context)
+                        .doesNotHaveBean(
+                                OpenApiGroupConstants.PUBLIC_GROUP_BEAN_NAME)
+                        .doesNotHaveBean(
+                                OpenApiGroupConstants.INTERNAL_GROUP_BEAN_NAME));
+    }
+
+    @Test
     void doesNotCreateGroupsOutsideServletApplications() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
@@ -56,10 +70,26 @@ class WorthItOpenApiGroupsAutoConfigurationTest {
     }
 
     @Test
+    void doesNotCreateGroupsWhenSpringdocIsMissing() {
+        webContextRunner
+                .withClassLoader(new FilteredClassLoader(GroupedOpenApi.class))
+                .withPropertyValues(
+                        "worthit.web.openapi.enabled=true",
+                        "springdoc.api-docs.enabled=true")
+                .run(context -> assertThat(context)
+                        .doesNotHaveBean(
+                                OpenApiGroupConstants.PUBLIC_GROUP_BEAN_NAME)
+                        .doesNotHaveBean(
+                                OpenApiGroupConstants.INTERNAL_GROUP_BEAN_NAME));
+    }
+
+    @Test
     void backsOffWhenApplicationProvidesPublicGroup() {
         webContextRunner
                 .withUserConfiguration(PublicGroupOverrideConfiguration.class)
-                .withPropertyValues("springdoc.api-docs.enabled=true")
+                .withPropertyValues(
+                        "worthit.web.openapi.enabled=true",
+                        "springdoc.api-docs.enabled=true")
                 .run(context -> {
                     GroupedOpenApi publicGroup = context.getBean(
                             OpenApiGroupConstants.PUBLIC_GROUP_BEAN_NAME,

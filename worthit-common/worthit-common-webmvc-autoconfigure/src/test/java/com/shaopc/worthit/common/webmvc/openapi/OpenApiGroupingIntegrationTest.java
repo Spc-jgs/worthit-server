@@ -27,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         properties = {
                 "springdoc.api-docs.enabled=true",
                 "springdoc.swagger-ui.enabled=true",
-                "springdoc.enable-default-api-docs=false"
+                "springdoc.enable-default-api-docs=false",
+                "worthit.web.openapi.enabled=true"
         })
 @AutoConfigureMockMvc
 class OpenApiGroupingIntegrationTest {

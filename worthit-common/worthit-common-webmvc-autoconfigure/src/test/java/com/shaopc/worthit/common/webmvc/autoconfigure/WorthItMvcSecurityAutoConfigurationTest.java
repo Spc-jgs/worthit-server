@@ -14,6 +14,7 @@ import com.shaopc.worthit.common.webmvc.security.UserLoginVerifier;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
@@ -27,6 +28,7 @@ class WorthItMvcSecurityAutoConfigurationTest {
             new WebApplicationContextRunner()
                     .withConfiguration(AutoConfigurations.of(
                             JacksonAutoConfiguration.class,
+                            WorthItTraceAutoConfiguration.class,
                             WorthItMvcSecurityAutoConfiguration.class));
 
     @Test
@@ -128,9 +130,27 @@ class WorthItMvcSecurityAutoConfigurationTest {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
                         JacksonAutoConfiguration.class,
+                        WorthItTraceAutoConfiguration.class,
                         WorthItMvcSecurityAutoConfiguration.class))
                 .run(context -> assertThat(context)
                         .doesNotHaveBean(StpLogic.class)
+                        .doesNotHaveBean(TrustedSourceFilter.class));
+    }
+
+    @Test
+    void doesNotCreateSecurityRuntimeWhenDisabled() {
+        webContextRunner
+                .withPropertyValues("worthit.security.mvc.enabled=false")
+                .run(context -> assertThat(context)
+                        .doesNotHaveBean(StpLogic.class)
+                        .doesNotHaveBean(TrustedSourceFilter.class));
+    }
+
+    @Test
+    void doesNotCreateSecurityRuntimeWhenSaTokenIsMissing() {
+        webContextRunner
+                .withClassLoader(new FilteredClassLoader(StpLogic.class))
+                .run(context -> assertThat(context)
                         .doesNotHaveBean(TrustedSourceFilter.class));
     }
 
