@@ -227,7 +227,7 @@ autoconfigure POM 增加可选注解处理器：
 mvn -pl worthit-common/worthit-common-webmvc-autoconfigure -am test
 mvn -pl worthit-common/worthit-common-webmvc-autoconfigure -am package
 rg -n \
-  '"name":"worthit\.(web\.(trace|error-handling|openapi)|security\.mvc)\.enabled"' \
+  '"name":\s*"worthit\.(web\.(trace|error-handling|openapi)|security\.mvc)\.enabled"' \
   worthit-common/worthit-common-webmvc-autoconfigure/target/classes/META-INF/spring-configuration-metadata.json
 ```
 
