@@ -23,6 +23,7 @@ public class GatewaySaTokenConfiguration {
         return new SaReactorFilter()
                 .addInclude("/api/**")
                 .addExclude("/api/v1/auth/wechat/login")
+                .addExclude("/api/v1/auth/password/login")
                 .setAuth(ignored -> StpUtil.checkLogin())
                 .setError(errorWriter::unauthorized);
     }

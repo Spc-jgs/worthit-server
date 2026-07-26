@@ -29,8 +29,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GatewaySaTokenSecurityTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AtomicInteger generatedTraceIds = new AtomicInteger();
     private final GatewaySecurityErrorWriter errorWriter =
-            new GatewaySecurityErrorWriter(objectMapper);
+            new GatewaySecurityErrorWriter(
+                    objectMapper,
+                    () -> {
+                        generatedTraceIds.incrementAndGet();
+                        return "trace-trusted";
+                    });
     private final SaReactorFilter filter =
             new GatewaySaTokenConfiguration().saReactorFilter(errorWriter);
 
@@ -42,42 +48,54 @@ class GatewaySaTokenSecurityTest {
     @Test
     void rejectsMissingLoginWithUnifiedUnauthorizedResponse() throws Exception {
         AtomicBoolean reached = new AtomicBoolean();
-        AtomicInteger generated = new AtomicInteger();
-        TrustedHeadersGlobalFilter trustedHeaders =
-                new TrustedHeadersGlobalFilter(
-                        () -> {
-                            generated.incrementAndGet();
-                            return "trace-trusted";
-                        },
-                        () -> "same-token-trusted");
         MockServerWebExchange exchange = exchange("/api/v1/items");
 
-        withLoginState(false, () -> StepVerifier.create(trustedHeaders.filter(
+        withLoginState(false, () -> StepVerifier.create(filter.filter(
                         exchange,
-                        trustedExchange -> filter.filter(
-                                trustedExchange,
-                                ignored -> {
-                                    reached.set(true);
-                                    return Mono.empty();
-                                })))
+                        ignored -> {
+                            reached.set(true);
+                            return Mono.empty();
+                        }))
                 .verifyComplete());
 
         JsonNode body = objectMapper.readTree(
                 exchange.getResponse().getBodyAsString().block());
         assertThat(reached).isFalse();
-        assertThat(generated).hasValue(1);
         assertThat(exchange.getResponse().getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exchange.getResponse().getHeaders()
-                .getFirst(SecurityHeaderNames.TRACE_ID))
-                .isEqualTo("trace-trusted");
+        String responseTraceId = exchange.getResponse().getHeaders()
+                .getFirst(SecurityHeaderNames.TRACE_ID);
+        assertThat(responseTraceId).isEqualTo("trace-trusted");
+        assertThat(generatedTraceIds).hasValue(1);
         assertThat(body.path("success").booleanValue()).isFalse();
         assertThat(body.path("code").textValue())
                 .isEqualTo("AUTH_UNAUTHORIZED");
         assertThat(body.path("traceId").textValue())
-                .isEqualTo("trace-trusted");
+                .isEqualTo(responseTraceId);
         assertThat(body.toString())
                 .doesNotContain("NotLoginException", "token-forged");
+    }
+
+    @Test
+    void doesNotTrustExternalTraceIdOnUnauthorizedResponse() throws Exception {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/items")
+                        .header("worthit-token", "token-forged")
+                        .header(SecurityHeaderNames.TRACE_ID, "trace-forged")
+                        .build());
+
+        withLoginState(false, () -> StepVerifier.create(filter.filter(
+                        exchange, ignored -> Mono.empty()))
+                .verifyComplete());
+
+        JsonNode body = objectMapper.readTree(
+                exchange.getResponse().getBodyAsString().block());
+        String responseTraceId = exchange.getResponse().getHeaders()
+                .getFirst(SecurityHeaderNames.TRACE_ID);
+        assertThat(responseTraceId).isEqualTo("trace-trusted");
+        assertThat(generatedTraceIds).hasValue(1);
+        assertThat(body.path("traceId").textValue())
+                .isEqualTo(responseTraceId);
     }
 
     @Test
@@ -99,6 +117,7 @@ class GatewaySaTokenSecurityTest {
     void loginAndHealthPathsDoNotRequireExistingLogin() {
         for (String path : new String[]{
                 "/api/v1/auth/wechat/login",
+                "/api/v1/auth/password/login",
                 "/actuator/health",
                 "/actuator/health/readiness"}) {
             AtomicBoolean reached = new AtomicBoolean();
