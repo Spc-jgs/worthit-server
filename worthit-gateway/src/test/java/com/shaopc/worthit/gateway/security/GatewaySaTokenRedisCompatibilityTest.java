@@ -6,7 +6,8 @@ import cn.dev33.satoken.jwt.StpLogicJwtForSimple;
 import cn.dev33.satoken.same.SaSameUtil;
 import cn.dev33.satoken.stp.StpUtil;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
-import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenService;
+import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenProvider;
+import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenVerifier;
 import com.shaopc.worthit.gateway.WorthItGatewayApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,13 +72,17 @@ class GatewaySaTokenRedisCompatibilityTest {
         assertThat(StpUtil.getStpLogic()).isInstanceOf(StpLogicJwtForSimple.class);
 
         String token = SaSameUtil.getToken();
-        SaTokenSameTokenService sameTokenService = new SaTokenSameTokenService();
+        SaTokenSameTokenProvider sameTokenProvider =
+                new SaTokenSameTokenProvider();
+        SaTokenSameTokenVerifier sameTokenVerifier =
+                new SaTokenSameTokenVerifier();
 
         assertThat(token).isNotBlank();
         assertThat(redis.hasKey(SAME_TOKEN_KEY)).isTrue();
         assertThat(redis.getExpire(SAME_TOKEN_KEY, TimeUnit.SECONDS)).isPositive();
-        assertThat(sameTokenService.currentToken()).isEqualTo(token);
-        assertThatCode(() -> sameTokenService.verify(token)).doesNotThrowAnyException();
+        assertThat(sameTokenProvider.currentToken()).isEqualTo(token);
+        assertThatCode(() -> sameTokenVerifier.verify(token))
+                .doesNotThrowAnyException();
 
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/items")

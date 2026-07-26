@@ -5,7 +5,8 @@ import cn.dev33.satoken.stp.StpLogic;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.core.trace.UuidTraceIdGenerator;
-import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenService;
+import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenProvider;
+import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenVerifier;
 import com.shaopc.worthit.common.security.sametoken.SameTokenProvider;
 import com.shaopc.worthit.common.security.sametoken.SameTokenVerifier;
 import com.shaopc.worthit.common.webmvc.security.PublicRequestAuthorizationPolicy;
@@ -36,17 +37,25 @@ public class WorthItMvcSecurityAutoConfiguration {
     }
 
     /**
-     * 提供 Same-Token 的生成与校验适配器。
+     * 提供 Same-Token 获取适配器。
      *
-     * @return Sa-Token Same-Token 适配器
+     * @return Sa-Token Same-Token 获取适配器
      */
     @Bean
-    @ConditionalOnMissingBean({
-            SameTokenProvider.class,
-            SameTokenVerifier.class
-    })
-    SaTokenSameTokenService saTokenSameTokenService() {
-        return new SaTokenSameTokenService();
+    @ConditionalOnMissingBean(SameTokenProvider.class)
+    SaTokenSameTokenProvider saTokenSameTokenProvider() {
+        return new SaTokenSameTokenProvider();
+    }
+
+    /**
+     * 提供 Same-Token 校验适配器。
+     *
+     * @return Sa-Token Same-Token 校验适配器
+     */
+    @Bean
+    @ConditionalOnMissingBean(SameTokenVerifier.class)
+    SaTokenSameTokenVerifier saTokenSameTokenVerifier() {
+        return new SaTokenSameTokenVerifier();
     }
 
     /**

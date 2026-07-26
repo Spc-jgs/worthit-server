@@ -4,7 +4,8 @@ import cn.dev33.satoken.jwt.StpLogicJwtForSimple;
 import cn.dev33.satoken.stp.StpLogic;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
-import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenService;
+import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenProvider;
+import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenVerifier;
 import com.shaopc.worthit.common.security.sametoken.SameTokenProvider;
 import com.shaopc.worthit.common.security.sametoken.SameTokenVerifier;
 import com.shaopc.worthit.common.webmvc.security.PublicRequestAuthorizationPolicy;
@@ -35,7 +36,8 @@ class WorthItMvcSecurityAutoConfigurationTest {
             assertThat(context).hasSingleBean(StpLogic.class);
             assertThat(context.getBean(StpLogic.class))
                     .isInstanceOf(StpLogicJwtForSimple.class);
-            assertThat(context).hasSingleBean(SaTokenSameTokenService.class);
+            assertThat(context).hasSingleBean(SaTokenSameTokenProvider.class);
+            assertThat(context).hasSingleBean(SaTokenSameTokenVerifier.class);
             assertThat(context).hasSingleBean(SameTokenProvider.class);
             assertThat(context).hasSingleBean(SameTokenVerifier.class);
             assertThat(context).hasSingleBean(TraceIdGenerator.class);
@@ -71,6 +73,57 @@ class WorthItMvcSecurityAutoConfigurationTest {
     }
 
     @Test
+    void backsOffOnlySameTokenProviderAndKeepsDefaultVerifier() {
+        webContextRunner
+                .withUserConfiguration(
+                        SameTokenProviderOverrideConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(SameTokenProvider.class);
+                    assertThat(context.getBean(SameTokenProvider.class))
+                            .isSameAs(context.getBean(
+                                    "customSameTokenProvider",
+                                    SameTokenProvider.class));
+                    assertThat(context).hasSingleBean(SameTokenVerifier.class);
+                    assertThat(context).hasSingleBean(TrustedSourceFilter.class);
+                });
+    }
+
+    @Test
+    void backsOffOnlySameTokenVerifierAndKeepsDefaultProvider() {
+        webContextRunner
+                .withUserConfiguration(
+                        SameTokenVerifierOverrideConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(SameTokenVerifier.class);
+                    assertThat(context.getBean(SameTokenVerifier.class))
+                            .isSameAs(context.getBean(
+                                    "customSameTokenVerifier",
+                                    SameTokenVerifier.class));
+                    assertThat(context).hasSingleBean(SameTokenProvider.class);
+                    assertThat(context).hasSingleBean(TrustedSourceFilter.class);
+                });
+    }
+
+    @Test
+    void backsOffForBothSameTokenOverrides() {
+        webContextRunner
+                .withUserConfiguration(SameTokenOverridesConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(SameTokenProvider.class);
+                    assertThat(context).hasSingleBean(SameTokenVerifier.class);
+                    assertThat(context.getBean(SameTokenProvider.class))
+                            .isSameAs(context.getBean(
+                                    "customSameTokenProvider",
+                                    SameTokenProvider.class));
+                    assertThat(context.getBean(SameTokenVerifier.class))
+                            .isSameAs(context.getBean(
+                                    "customSameTokenVerifier",
+                                    SameTokenVerifier.class));
+                    assertThat(context).hasSingleBean(TrustedSourceFilter.class);
+                });
+    }
+
+    @Test
     void doesNotCreateSecurityRuntimeOutsideServletApplications() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
@@ -93,6 +146,40 @@ class WorthItMvcSecurityAutoConfigurationTest {
         @Bean
         PublicRequestAuthorizationPolicy customPublicRequestAuthorizationPolicy() {
             return path -> !"/api/v1/auth/wechat/login".equals(path);
+        }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class SameTokenProviderOverrideConfiguration {
+
+        @Bean
+        SameTokenProvider customSameTokenProvider() {
+            return () -> "custom-provider-token";
+        }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class SameTokenVerifierOverrideConfiguration {
+
+        @Bean
+        SameTokenVerifier customSameTokenVerifier() {
+            return token -> {
+            };
+        }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class SameTokenOverridesConfiguration {
+
+        @Bean
+        SameTokenProvider customSameTokenProvider() {
+            return () -> "custom-provider-token";
+        }
+
+        @Bean
+        SameTokenVerifier customSameTokenVerifier() {
+            return token -> {
+            };
         }
     }
 }

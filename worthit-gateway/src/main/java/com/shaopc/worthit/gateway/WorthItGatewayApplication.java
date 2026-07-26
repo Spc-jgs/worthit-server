@@ -2,7 +2,7 @@ package com.shaopc.worthit.gateway;
 
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.core.trace.UuidTraceIdGenerator;
-import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenService;
+import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenProvider;
 import com.shaopc.worthit.common.security.sametoken.SameTokenProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -40,6 +40,6 @@ public class WorthItGatewayApplication {
      */
     @Bean
     SameTokenProvider sameTokenProvider() {
-        return new SaTokenSameTokenService();
+        return new SaTokenSameTokenProvider();
     }
 }
