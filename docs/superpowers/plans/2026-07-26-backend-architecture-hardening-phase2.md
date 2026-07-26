@@ -441,6 +441,7 @@ Expected: PASS；响应不泄露内部异常文本，TraceId 头与 body 一致�
 ```bash
 git add -- \
   worthit-common/worthit-common-web/src \
+  worthit-common/worthit-common-webmvc-autoconfigure/pom.xml \
   worthit-common/worthit-common-webmvc-autoconfigure/src
 git diff --cached --check
 git commit -m "feat(webmvc): 提供统一异常响应装配"
