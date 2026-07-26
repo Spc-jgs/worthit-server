@@ -1,26 +1,30 @@
 package com.shaopc.worthit.reminder.app.architecture;
 
+import com.shaopc.worthit.common.test.architecture.WorthItArchitectureRules;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ReminderAppArchitectureTest {
 
     @Test
-    void reminderAppDoesNotDependOnReactiveWebRuntime() {
-        JavaClasses classes = new ClassFileImporter()
-                .withImportOption(new ImportOption.DoNotIncludeTests())
-                .importPackages("com.shaopc.worthit.reminder.app");
+    void importsProductionReminderClasses() {
+        assertThat(importProductionClasses()).isNotEmpty();
+    }
 
-        noClasses()
-                .that().resideInAPackage("com.shaopc.worthit.reminder.app..")
-                .should().dependOnClassesThat().resideInAnyPackage(
-                        "org.springframework.web.reactive..",
-                        "org.springframework.web.server..")
-                .allowEmptyShould(false)
-                .check(classes);
+    @Test
+    void reminderAppDoesNotDependOnReactiveWebRuntime() {
+        WorthItArchitectureRules
+                .SERVLET_APPS_MUST_NOT_DEPEND_ON_REACTIVE_RUNTIME
+                .check(importProductionClasses());
+    }
+
+    private static JavaClasses importProductionClasses() {
+        return new ClassFileImporter()
+                .withImportOption(new ImportOption.DoNotIncludeTests())
+                .importPackages("com.shaopc.worthit.reminder");
     }
 }

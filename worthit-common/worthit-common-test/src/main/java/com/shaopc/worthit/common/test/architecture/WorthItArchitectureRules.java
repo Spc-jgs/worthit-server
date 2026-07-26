@@ -73,6 +73,22 @@ public final class WorthItArchitectureRules {
                     .as("Gateway 必须保持响应式运行栈");
 
     /**
+     * Servlet 业务应用不得依赖响应式 Web 运行时。
+     */
+    public static final ArchRule
+            SERVLET_APPS_MUST_NOT_DEPEND_ON_REACTIVE_RUNTIME =
+            noClasses()
+                    .that().resideInAnyPackage(
+                            "com.shaopc.worthit.auth..",
+                            "com.shaopc.worthit.tracking..",
+                            "com.shaopc.worthit.reminder..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.web.reactive..",
+                            "org.springframework.web.server..")
+                    .allowEmptyShould(false)
+                    .as("Servlet 业务应用不得依赖响应式 Web 运行时");
+
+    /**
      * Client 模块必须只包含契约，不得依赖应用运行时。
      */
     public static final ArchRule CLIENT_MUST_STAY_CONTRACT_ONLY =

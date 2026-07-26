@@ -19,6 +19,10 @@ class ReminderClientArchitectureTest {
             WorthItArchitectureRules.CLIENT_MUST_NOT_DEPEND_ON_IMPLEMENTATION;
 
     @ArchTest
+    static final ArchRule clientMustStayContractOnly =
+            WorthItArchitectureRules.CLIENT_MUST_STAY_CONTRACT_ONLY;
+
+    @ArchTest
     static void importsProductionClientClasses(JavaClasses classes) {
         assertThat(classes).isNotEmpty();
     }

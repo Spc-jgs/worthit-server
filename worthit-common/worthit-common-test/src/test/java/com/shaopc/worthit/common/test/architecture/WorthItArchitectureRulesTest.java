@@ -11,6 +11,7 @@ import com.shaopc.worthit.reminder.client.fixture.ValidClientFixture;
 import com.shaopc.worthit.gateway.fixture.GatewayDependsOnRestClientFixture;
 import com.shaopc.worthit.gateway.fixture.GatewayDependsOnServletFixture;
 import com.shaopc.worthit.gateway.fixture.ValidGatewayFixture;
+import com.shaopc.worthit.tracking.fixture.ServletAppDependsOnWebFluxFixture;
 import com.shaopc.worthit.tracking.fixture.TrackingFixture;
 import com.shaopc.worthit.tracking.item.domain.fixture.DomainDependsOnInfrastructureFixture;
 import com.shaopc.worthit.tracking.item.domain.fixture.ValidDomainFixture;
@@ -122,6 +123,30 @@ class WorthItArchitectureRulesTest {
                                 .check(classes))
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("org.springframework.web.client");
+    }
+
+    @Test
+    void servletAppRuntimeRuleAcceptsServletApplicationCode() {
+        JavaClasses classes = importer.importClasses(TrackingFixture.class);
+
+        assertThatCode(() ->
+                WorthItArchitectureRules
+                        .SERVLET_APPS_MUST_NOT_DEPEND_ON_REACTIVE_RUNTIME
+                        .check(classes))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void servletAppRuntimeRuleRejectsWebFluxDependency() {
+        JavaClasses classes = importer.importClasses(
+                ServletAppDependsOnWebFluxFixture.class);
+
+        assertThatThrownBy(() ->
+                WorthItArchitectureRules
+                        .SERVLET_APPS_MUST_NOT_DEPEND_ON_REACTIVE_RUNTIME
+                        .check(classes))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("org.springframework.web.reactive");
     }
 
     @Test
