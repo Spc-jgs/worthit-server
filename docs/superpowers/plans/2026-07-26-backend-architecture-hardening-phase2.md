@@ -104,6 +104,7 @@ Lombok 和测试框架的重复声明。
 Run:
 
 ```bash
+mvn -DskipTests install
 mvn -pl \
   worthit-common/worthit-common-webmvc-autoconfigure,\
 worthit-common/worthit-common-webmvc-starter,\
@@ -539,9 +540,14 @@ Expected: PASS；WebFlux/Servlet、Client、Common 与新模块边界均未被�
 - [ ] **Step 5: 执行批次二总门禁**
 
 ```bash
+mvn clean
 mvn validate
 mvn test
 mvn package
+! jar tf \
+  worthit-common/worthit-common-webmvc-starter/target/\
+worthit-common-webmvc-starter-0.1.0-SNAPSHOT.jar \
+  | rg '(^com/shaopc/worthit/.*\.class$|AutoConfiguration\.imports$)'
 git diff --check
 git status --short --untracked-files=all
 ```
@@ -554,8 +560,11 @@ Expected: 18 个 Reactor 模块全部成功，工作区只含本任务预期文�
 git add -- \
   worthit-auth/worthit-auth-app/pom.xml \
   worthit-auth/worthit-auth-app/src/main/resources/application.yml \
+  worthit-auth/worthit-auth-app/src/test/java/com/shaopc/worthit/auth/app/architecture/AuthAppArchitectureTest.java \
   worthit-tracking/worthit-tracking-app/src/main/resources/application.yml \
+  worthit-tracking/worthit-tracking-app/src/test/java/com/shaopc/worthit/tracking/app/architecture/TrackingAppArchitectureTest.java \
   worthit-reminder/worthit-reminder-app/src/main/resources/application.yml \
+  worthit-reminder/worthit-reminder-app/src/test/java/com/shaopc/worthit/reminder/app/architecture/ReminderAppArchitectureTest.java \
   worthit-common/worthit-common-test \
   rules/10-architecture.md \
   rules/30-spring-maven.md \
