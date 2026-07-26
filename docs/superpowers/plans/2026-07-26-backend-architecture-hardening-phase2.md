@@ -108,14 +108,15 @@ mvn -pl \
   worthit-common/worthit-common-webmvc-autoconfigure,\
 worthit-common/worthit-common-webmvc-starter,\
 worthit-auth/worthit-auth-app,\
-worthit-tracking/worthit-tracking-app,\
+  worthit-tracking/worthit-tracking-app,\
 worthit-reminder/worthit-reminder-app \
   -am test
-test ! -d worthit-common/worthit-common-webmvc-starter/src
+test -z "$(find worthit-common/worthit-common-webmvc-starter/src \
+  -type f -print -quit 2>/dev/null)"
 ```
 
 Expected: PASS；原 22 个 Starter 测试在 autoconfigure 模块中通过，三个 App
-继续编译测试，Starter 无 `src`。
+继续编译测试，Starter 的 `src` 下没有文件。
 
 - [ ] **Step 6: 精确提交模块边界**
 
