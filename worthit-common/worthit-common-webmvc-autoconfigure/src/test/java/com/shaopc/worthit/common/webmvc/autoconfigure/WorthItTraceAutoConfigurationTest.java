@@ -2,7 +2,9 @@ package com.shaopc.worthit.common.webmvc.autoconfigure;
 
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.core.trace.UuidTraceIdGenerator;
+import com.shaopc.worthit.common.webmvc.trace.TrustedTraceIdFilter;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -24,6 +26,15 @@ class WorthItTraceAutoConfigurationTest {
             assertThat(context).hasSingleBean(TraceIdGenerator.class);
             assertThat(context.getBean(TraceIdGenerator.class))
                     .isInstanceOf(UuidTraceIdGenerator.class);
+            assertThat(context).hasSingleBean(TrustedTraceIdFilter.class);
+
+            FilterRegistrationBean<?> registration = context.getBean(
+                    "trustedTraceIdFilterRegistration",
+                    FilterRegistrationBean.class);
+            assertThat(registration.getFilter())
+                    .isSameAs(context.getBean(TrustedTraceIdFilter.class));
+            assertThat(registration.getOrder())
+                    .isEqualTo(Integer.MIN_VALUE + 20);
         });
     }
 
@@ -44,8 +55,13 @@ class WorthItTraceAutoConfigurationTest {
     void doesNotCreateTraceRuntimeWhenDisabled() {
         webContextRunner
                 .withPropertyValues("worthit.web.trace.enabled=false")
-                .run(context -> assertThat(context)
-                        .doesNotHaveBean(TraceIdGenerator.class));
+                .run(context -> {
+                    assertThat(context).hasSingleBean(TraceIdGenerator.class);
+                    assertThat(context)
+                            .doesNotHaveBean(TrustedTraceIdFilter.class);
+                    assertThat(context).doesNotHaveBean(
+                            "trustedTraceIdFilterRegistration");
+                });
     }
 
     @Test

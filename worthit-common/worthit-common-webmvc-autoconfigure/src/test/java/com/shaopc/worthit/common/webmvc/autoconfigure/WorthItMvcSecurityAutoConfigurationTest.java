@@ -9,8 +9,11 @@ import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenVerifier;
 import com.shaopc.worthit.common.security.sametoken.SameTokenProvider;
 import com.shaopc.worthit.common.security.sametoken.SameTokenVerifier;
 import com.shaopc.worthit.common.webmvc.security.PublicRequestAuthorizationPolicy;
+import com.shaopc.worthit.common.webmvc.security.PublicAuthenticationFilter;
+import com.shaopc.worthit.common.webmvc.security.ServletApiErrorWriter;
 import com.shaopc.worthit.common.webmvc.security.TrustedSourceFilter;
 import com.shaopc.worthit.common.webmvc.security.UserLoginVerifier;
+import com.shaopc.worthit.common.webmvc.trace.TrustedTraceIdFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
@@ -18,6 +21,7 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +50,27 @@ class WorthItMvcSecurityAutoConfigurationTest {
             assertThat(context).hasSingleBean(UserLoginVerifier.class);
             assertThat(context)
                     .hasSingleBean(PublicRequestAuthorizationPolicy.class);
+            assertThat(context).hasSingleBean(ServletApiErrorWriter.class);
             assertThat(context).hasSingleBean(TrustedSourceFilter.class);
+            assertThat(context)
+                    .hasSingleBean(PublicAuthenticationFilter.class);
+
+            FilterRegistrationBean<?> sourceRegistration = context.getBean(
+                    "trustedSourceFilterRegistration",
+                    FilterRegistrationBean.class);
+            FilterRegistrationBean<?> authenticationRegistration =
+                    context.getBean(
+                            "publicAuthenticationFilterRegistration",
+                            FilterRegistrationBean.class);
+            assertThat(sourceRegistration.getFilter())
+                    .isSameAs(context.getBean(TrustedSourceFilter.class));
+            assertThat(sourceRegistration.getOrder())
+                    .isEqualTo(Integer.MIN_VALUE + 10);
+            assertThat(authenticationRegistration.getFilter())
+                    .isSameAs(context.getBean(
+                            PublicAuthenticationFilter.class));
+            assertThat(authenticationRegistration.getOrder())
+                    .isEqualTo(Integer.MIN_VALUE + 30);
 
             PublicRequestAuthorizationPolicy policy =
                     context.getBean(PublicRequestAuthorizationPolicy.class);
@@ -134,16 +158,37 @@ class WorthItMvcSecurityAutoConfigurationTest {
                         WorthItMvcSecurityAutoConfiguration.class))
                 .run(context -> assertThat(context)
                         .doesNotHaveBean(StpLogic.class)
-                        .doesNotHaveBean(TrustedSourceFilter.class));
+                        .doesNotHaveBean(TrustedSourceFilter.class)
+                        .doesNotHaveBean(PublicAuthenticationFilter.class));
     }
 
     @Test
     void doesNotCreateSecurityRuntimeWhenDisabled() {
         webContextRunner
                 .withPropertyValues("worthit.security.mvc.enabled=false")
-                .run(context -> assertThat(context)
-                        .doesNotHaveBean(StpLogic.class)
-                        .doesNotHaveBean(TrustedSourceFilter.class));
+                .run(context -> {
+                    assertThat(context)
+                            .doesNotHaveBean(StpLogic.class)
+                            .doesNotHaveBean(TrustedSourceFilter.class)
+                            .doesNotHaveBean(PublicAuthenticationFilter.class);
+                    assertThat(context)
+                            .hasSingleBean(TrustedTraceIdFilter.class);
+                });
+    }
+
+    @Test
+    void keepsSecurityRuntimeWhenTraceFilterIsDisabled() {
+        webContextRunner
+                .withPropertyValues("worthit.web.trace.enabled=false")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(TraceIdGenerator.class);
+                    assertThat(context)
+                            .doesNotHaveBean(TrustedTraceIdFilter.class);
+                    assertThat(context)
+                            .hasSingleBean(TrustedSourceFilter.class);
+                    assertThat(context)
+                            .hasSingleBean(PublicAuthenticationFilter.class);
+                });
     }
 
     @Test
@@ -151,7 +196,8 @@ class WorthItMvcSecurityAutoConfigurationTest {
         webContextRunner
                 .withClassLoader(new FilteredClassLoader(StpLogic.class))
                 .run(context -> assertThat(context)
-                        .doesNotHaveBean(TrustedSourceFilter.class));
+                        .doesNotHaveBean(TrustedSourceFilter.class)
+                        .doesNotHaveBean(PublicAuthenticationFilter.class));
     }
 
     @TestConfiguration(proxyBeanMethods = false)

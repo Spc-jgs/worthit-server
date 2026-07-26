@@ -2,8 +2,6 @@ package com.shaopc.worthit.common.webmvc.security;
 
 import cn.dev33.satoken.exception.SaTokenException;
 import com.shaopc.worthit.common.security.error.SecurityErrorCode;
-import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
-import com.shaopc.worthit.common.security.sametoken.SameTokenVerifier;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,24 +13,29 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * 校验 Servlet 公网和内部接口请求来自可信 Gateway。
+ * 校验 Servlet 公网接口所需的用户登录态。
  */
-public final class TrustedSourceFilter extends OncePerRequestFilter {
+public final class PublicAuthenticationFilter extends OncePerRequestFilter {
 
-    private final SameTokenVerifier sameTokenVerifier;
+    private final UserLoginVerifier userLoginVerifier;
+    private final PublicRequestAuthorizationPolicy authorizationPolicy;
     private final ServletApiErrorWriter errorWriter;
 
     /**
-     * 创建可信来源过滤器。
+     * 创建公网用户鉴权过滤器。
      *
-     * @param sameTokenVerifier Same-Token 校验器
+     * @param userLoginVerifier 用户登录态校验器
+     * @param authorizationPolicy 公网请求登录策略
      * @param errorWriter 统一错误写入器
      */
-    public TrustedSourceFilter(
-            SameTokenVerifier sameTokenVerifier,
+    public PublicAuthenticationFilter(
+            UserLoginVerifier userLoginVerifier,
+            PublicRequestAuthorizationPolicy authorizationPolicy,
             ServletApiErrorWriter errorWriter) {
-        this.sameTokenVerifier = Objects.requireNonNull(
-                sameTokenVerifier, "Same-Token校验器不能为空");
+        this.userLoginVerifier = Objects.requireNonNull(
+                userLoginVerifier, "用户登录态校验器不能为空");
+        this.authorizationPolicy = Objects.requireNonNull(
+                authorizationPolicy, "公网请求登录策略不能为空");
         this.errorWriter =
                 Objects.requireNonNull(errorWriter, "错误写入器不能为空");
     }
@@ -42,18 +45,19 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        try {
-            sameTokenVerifier.verify(
-                    request.getHeader(SecurityHeaderNames.SAME_TOKEN));
-        } catch (SaTokenException exception) {
-            errorWriter.write(
-                    request,
-                    response,
-                    HttpStatus.FORBIDDEN,
-                    SecurityErrorCode.AUTH_FORBIDDEN);
-            return;
+        if (isApiPath(request.getRequestURI())
+                && authorizationPolicy.requiresLogin(request.getRequestURI())) {
+            try {
+                userLoginVerifier.verify();
+            } catch (SaTokenException exception) {
+                errorWriter.write(
+                        request,
+                        response,
+                        HttpStatus.UNAUTHORIZED,
+                        SecurityErrorCode.AUTH_UNAUTHORIZED);
+                return;
+            }
         }
-        request.setAttribute(TrustedRequestAttributes.TRUSTED_SOURCE, true);
         filterChain.doFilter(request, response);
     }
 
@@ -70,5 +74,4 @@ public final class TrustedSourceFilter extends OncePerRequestFilter {
     private static boolean isInternalPath(String path) {
         return path.equals("/internal") || path.startsWith("/internal/");
     }
-
 }
