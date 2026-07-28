@@ -1,13 +1,16 @@
 package com.shaopc.worthit.tracking.item.infrastructure.persistence;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.shaopc.worthit.common.core.pagination.PageQuery;
 import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.tracking.item.domain.Item;
+import com.shaopc.worthit.tracking.item.domain.ItemDeletionState;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,6 +36,46 @@ public class MybatisItemRepository implements ItemRepository {
         return Optional.ofNullable(
                         itemMapper.selectDetail(itemId, userId))
                 .map(this::toView);
+    }
+
+    @Override
+    public Optional<ItemDeletionState> findDeletionState(
+            long itemId, long userId) {
+        ItemDO data = itemMapper.selectOne(
+                Wrappers.<ItemDO>lambdaQuery()
+                        .eq(ItemDO::getId, itemId)
+                        .eq(ItemDO::getUserId, userId));
+        return Optional.ofNullable(data)
+                .map(item -> new ItemDeletionState(
+                        toDomain(item),
+                        Boolean.TRUE.equals(item.getDelFlag()),
+                        item.getDeleteTime()));
+    }
+
+    @Override
+    public boolean update(Item item, long expectedVersion) {
+        return itemMapper.updateByVersion(
+                item, expectedVersion) == 1;
+    }
+
+    @Override
+    public boolean delete(
+            long itemId,
+            long userId,
+            long expectedVersion,
+            LocalDateTime now) {
+        return itemMapper.deleteByVersion(
+                itemId, userId, expectedVersion, now) == 1;
+    }
+
+    @Override
+    public boolean restore(
+            long itemId,
+            long userId,
+            long deletedVersion,
+            LocalDateTime now) {
+        return itemMapper.restoreByVersion(
+                itemId, userId, deletedVersion, now) == 1;
     }
 
     @Override

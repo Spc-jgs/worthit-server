@@ -7,9 +7,11 @@ import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.common.security.context.UserContext;
 import com.shaopc.worthit.tracking.WorthItTrackingApplication;
 import com.shaopc.worthit.tracking.item.application.CreateItemCommand;
+import com.shaopc.worthit.tracking.item.application.DeleteItemResult;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
+import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,6 +55,11 @@ class ItemPersistenceIntegrationTest {
     private static final long USER_ID = 1001L;
     private static final LocalDate TODAY =
             LocalDate.of(2026, 7, 26);
+    private static final AtomicLong CURRENT_USER =
+            new AtomicLong(USER_ID);
+    private static final AtomicReference<Instant> CURRENT_INSTANT =
+            new AtomicReference<>(
+                    Instant.parse("2026-07-26T04:00:00Z"));
 
     @Container
     static final MySQLContainer<?> MYSQL =
@@ -79,6 +88,9 @@ class ItemPersistenceIntegrationTest {
 
     @BeforeEach
     void clearTrackingData() {
+        CURRENT_USER.set(USER_ID);
+        CURRENT_INSTANT.set(
+                Instant.parse("2026-07-26T04:00:00Z"));
         jdbcTemplate.update("DELETE FROM trk_outbox_event");
         jdbcTemplate.update(
                 "DELETE FROM trk_idempotency_record");
@@ -260,10 +272,199 @@ class ItemPersistenceIntegrationTest {
         assertThat(count("trk_item")).isZero();
     }
 
+    @Test
+    void updateUsesVersionAndWritesOneChangedExpectation()
+            throws Exception {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "MacBook",
+                        null,
+                        "1000",
+                        "1",
+                        null,
+                        null,
+                        TODAY.plusDays(15),
+                        true));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+
+        String updateKey = UUID.randomUUID().toString();
+        UpdateItemCommand update = updateCommand(
+                created.version(),
+                "MacBook Pro",
+                created.categoryId(),
+                TODAY.plusDays(30),
+                true);
+        ItemDetail updated = itemService.update(
+                created.id(),
+                updateKey,
+                update);
+        ItemDetail replay = itemService.update(
+                created.id(),
+                updateKey,
+                update);
+
+        assertThat(updated.name()).isEqualTo("MacBook Pro");
+        assertThat(updated.version()).isEqualTo(2);
+        assertThat(replay).isEqualTo(updated);
+        assertThat(count("trk_outbox_event")).isEqualTo(1);
+        JsonNode payload = objectMapper.readTree(
+                jdbcTemplate.queryForObject(
+                        "SELECT payload_json "
+                                + "FROM trk_outbox_event",
+                        String.class));
+        assertThat(payload.path("sourceVersion").asLong())
+                .isEqualTo(2);
+        assertThat(payload.path("operationType").asText())
+                .isEqualTo("UPDATE_BUSINESS_DATE");
+
+        assertThatThrownBy(() -> itemService.update(
+                created.id(),
+                UUID.randomUUID().toString(),
+                updateCommand(
+                        created.version(),
+                        "过期更新",
+                        created.categoryId(),
+                        TODAY.plusDays(31),
+                        true)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("VAL_STATE_CONFLICT"));
+        assertThat(count("trk_outbox_event")).isEqualTo(1);
+    }
+
+    @Test
+    void deleteAndRepeatedRestoreAreAtomicAndIdempotent() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "相机",
+                        null,
+                        "5000",
+                        "3",
+                        null,
+                        null,
+                        TODAY.plusDays(15),
+                        true));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+
+        String deleteKey = UUID.randomUUID().toString();
+        DeleteItemResult deleted = itemService.delete(
+                created.id(), created.version(), deleteKey);
+        DeleteItemResult deleteReplay = itemService.delete(
+                created.id(), created.version(), deleteKey);
+
+        assertThat(deleted.restoreDeadline()).isEqualTo(
+                LocalDate.of(2026, 7, 26)
+                        .atTime(12, 1));
+        assertThat(deleteReplay).isEqualTo(deleted);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT version FROM trk_item WHERE id = ?",
+                Long.class,
+                created.id())).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT del_flag FROM trk_item WHERE id = ?",
+                Boolean.class,
+                created.id())).isTrue();
+        assertThat(count("trk_outbox_event")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT operation_code "
+                        + "FROM trk_idempotency_record "
+                        + "WHERE idempotency_key = ?",
+                String.class,
+                deleted.restoreToken()))
+                .isEqualTo("ITEM_RESTORE");
+
+        ItemDetail first = itemService.restore(
+                created.id(), 2, deleted.restoreToken());
+        ItemDetail replay = itemService.restore(
+                created.id(), 2, deleted.restoreToken());
+
+        assertThat(first.version()).isEqualTo(3);
+        assertThat(replay).isEqualTo(first);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT del_flag FROM trk_item WHERE id = ?",
+                Boolean.class,
+                created.id())).isFalse();
+        assertThat(count("trk_outbox_event")).isEqualTo(1);
+    }
+
+    @Test
+    void restoreRejectsWrongTokenVersionExpiryAndOtherUser() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "耳机",
+                        null,
+                        "1000",
+                        "2",
+                        null,
+                        null,
+                        null,
+                        false));
+        DeleteItemResult deleted = itemService.delete(
+                created.id(),
+                created.version(),
+                UUID.randomUUID().toString());
+
+        assertStateConflict(() -> itemService.restore(
+                created.id(), 2, UUID.randomUUID().toString()));
+        assertStateConflict(() -> itemService.restore(
+                created.id(), 3, deleted.restoreToken()));
+
+        CURRENT_USER.set(2002L);
+        assertThatThrownBy(() -> itemService.restore(
+                created.id(), 2, deleted.restoreToken()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("RES_NOT_FOUND"));
+
+        CURRENT_USER.set(USER_ID);
+        CURRENT_INSTANT.set(
+                Instant.parse("2026-07-26T04:01:01Z"));
+        assertStateConflict(() -> itemService.restore(
+                created.id(), 2, deleted.restoreToken()));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT del_flag FROM trk_item WHERE id = ?",
+                Boolean.class,
+                created.id())).isTrue();
+    }
+
     private int count(String table) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM " + table,
                 Integer.class);
+    }
+
+    private static UpdateItemCommand updateCommand(
+            long version,
+            String name,
+            long categoryId,
+            LocalDate warrantyDate,
+            boolean reminderEnabled) {
+        return new UpdateItemCommand(
+                version,
+                name,
+                categoryId,
+                new BigDecimal("1200"),
+                new BigDecimal("2"),
+                BigDecimal.ZERO,
+                TODAY.minusDays(10),
+                warrantyDate,
+                reminderEnabled,
+                "M4",
+                "办公使用");
+    }
+
+    private static void assertStateConflict(
+            org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("VAL_STATE_CONFLICT"));
     }
 
     private static CreateItemCommand command(
@@ -296,15 +497,28 @@ class ItemPersistenceIntegrationTest {
         @Bean
         @Primary
         CurrentUserProvider fixedCurrentUserProvider() {
-            return () -> new UserContext(USER_ID);
+            return () -> new UserContext(CURRENT_USER.get());
         }
 
         @Bean
         @Primary
         Clock fixedTrackingClock() {
-            return Clock.fixed(
-                    Instant.parse("2026-07-26T04:00:00Z"),
-                    ZoneId.of("Asia/Shanghai"));
+            return new Clock() {
+                @Override
+                public ZoneId getZone() {
+                    return ZoneId.of("Asia/Shanghai");
+                }
+
+                @Override
+                public Clock withZone(ZoneId zone) {
+                    return this;
+                }
+
+                @Override
+                public Instant instant() {
+                    return CURRENT_INSTANT.get();
+                }
+            };
         }
     }
 }
