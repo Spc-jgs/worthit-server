@@ -1,14 +1,14 @@
-package com.shaopc.worthit.tracking.item.application;
+package com.shaopc.worthit.tracking.idempotency.application;
 
 /**
- * Item 写接口的持久化幂等边界。
+ * Tracking 写接口的持久化幂等边界。
  */
-public interface ItemIdempotencyStore {
+public interface IdempotencyStore {
 
     /**
      * 占用或重放幂等键。
      */
-    <T> ItemIdempotencyClaim<T> claim(
+    <T> IdempotencyClaim<T> claim(
             long userId,
             String operationCode,
             String idempotencyKey,

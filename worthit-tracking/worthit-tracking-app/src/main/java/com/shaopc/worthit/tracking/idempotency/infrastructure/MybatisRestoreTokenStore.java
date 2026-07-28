@@ -1,11 +1,10 @@
-package com.shaopc.worthit.tracking.item.infrastructure.idempotency;
+package com.shaopc.worthit.tracking.idempotency.infrastructure;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.shaopc.worthit.tracking.item.application.ItemDetail;
-import com.shaopc.worthit.tracking.item.application.ItemRestoreTokenClaim;
-import com.shaopc.worthit.tracking.item.application.ItemRestoreTokenStore;
+import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
+import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -18,121 +17,128 @@ import java.util.HexFormat;
 import java.util.UUID;
 
 /**
- * 复用 Tracking 幂等表保存 Item 短时恢复令牌和重放结果。
+ * 复用 Tracking 幂等表保存短时恢复令牌和重放结果。
  */
 @Repository
 @RequiredArgsConstructor
-public class MybatisItemRestoreTokenStore
-        implements ItemRestoreTokenStore {
+public class MybatisRestoreTokenStore
+        implements RestoreTokenStore {
 
-    private static final String OPERATION_CODE = "ITEM_RESTORE";
     private static final String PROCESSING = "PROCESSING";
     private static final String SUCCEEDED = "SUCCEEDED";
-    private final ItemIdempotencyMapper mapper;
+    private final IdempotencyMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock trackingClock;
 
     @Override
     public String issue(
             long userId,
-            long itemId,
+            String operationCode,
+            long resourceId,
             long deletedVersion,
             LocalDateTime deadline) {
         LocalDateTime now = LocalDateTime.now(trackingClock);
         String restoreToken = UUID.randomUUID().toString();
-        ItemIdempotencyDO grant = new ItemIdempotencyDO();
+        IdempotencyDO grant = new IdempotencyDO();
         grant.setId(IdWorker.getId());
         grant.setUserId(userId);
-        grant.setOperationCode(OPERATION_CODE);
+        grant.setOperationCode(operationCode);
         grant.setIdempotencyKey(restoreToken);
-        grant.setRequestHash(hash(itemId, deletedVersion));
+        grant.setRequestHash(hash(resourceId, deletedVersion));
         grant.setStatus(PROCESSING);
         grant.setProcessingExpireAt(deadline);
         grant.setExpiresAt(deadline);
         grant.setCreateTime(now);
         grant.setUpdateTime(now);
         if (mapper.insertClaim(grant) != 1) {
-            throw new IllegalStateException("Item恢复令牌创建失败");
+            throw new IllegalStateException(
+                    "恢复令牌创建失败");
         }
         return restoreToken;
     }
 
     @Override
-    public ItemRestoreTokenClaim claim(
+    public <T> RestoreTokenClaim<T> claim(
             long userId,
-            long itemId,
+            String operationCode,
+            long resourceId,
             long deletedVersion,
             String restoreToken,
-            LocalDateTime now) {
-        ItemIdempotencyDO grant = mapper.selectForUpdate(
-                userId, OPERATION_CODE, restoreToken);
+            LocalDateTime now,
+            Class<T> responseType) {
+        IdempotencyDO grant = mapper.selectForUpdate(
+                userId, operationCode, restoreToken);
         if (grant == null) {
-            return claim(ItemRestoreTokenClaim.Status.EXPIRED);
+            return claim(RestoreTokenClaim.Status.EXPIRED);
         }
-        if (!hash(itemId, deletedVersion)
+        if (!hash(resourceId, deletedVersion)
                 .equals(grant.getRequestHash())) {
-            return claim(ItemRestoreTokenClaim.Status.CONFLICT);
+            return claim(RestoreTokenClaim.Status.CONFLICT);
         }
         if (SUCCEEDED.equals(grant.getStatus())
                 && grant.getResponseJson() != null) {
-            return new ItemRestoreTokenClaim(
-                    ItemRestoreTokenClaim.Status.REPLAY,
-                    readResponse(grant.getResponseJson()));
+            return new RestoreTokenClaim<>(
+                    RestoreTokenClaim.Status.REPLAY,
+                    readResponse(
+                            grant.getResponseJson(),
+                            responseType));
         }
         if (!PROCESSING.equals(grant.getStatus())
                 || now.isAfter(grant.getExpiresAt())) {
-            return claim(ItemRestoreTokenClaim.Status.EXPIRED);
+            return claim(RestoreTokenClaim.Status.EXPIRED);
         }
-        return claim(ItemRestoreTokenClaim.Status.AVAILABLE);
+        return claim(RestoreTokenClaim.Status.AVAILABLE);
     }
 
     @Override
-    public void complete(
+    public <T> void complete(
             long userId,
-            long itemId,
+            String operationCode,
+            long resourceId,
             long deletedVersion,
             String restoreToken,
-            ItemDetail response) {
+            T response) {
         try {
             int updated = mapper.complete(
                     userId,
-                    OPERATION_CODE,
+                    operationCode,
                     restoreToken,
-                    hash(itemId, deletedVersion),
+                    hash(resourceId, deletedVersion),
                     objectMapper.writeValueAsString(response),
                     LocalDateTime.now(trackingClock));
             if (updated != 1) {
                 throw new IllegalStateException(
-                        "Item恢复幂等结果写入失败");
+                        "恢复幂等结果写入失败");
             }
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
-                    "Item恢复结果序列化失败", exception);
+                    "恢复结果序列化失败", exception);
         }
     }
 
-    private ItemDetail readResponse(String responseJson) {
+    private <T> T readResponse(
+            String responseJson, Class<T> responseType) {
         try {
             return objectMapper.readValue(
-                    responseJson, ItemDetail.class);
+                    responseJson, responseType);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
-                    "Item恢复结果反序列化失败", exception);
+                    "恢复结果反序列化失败", exception);
         }
     }
 
-    private static ItemRestoreTokenClaim claim(
-            ItemRestoreTokenClaim.Status status) {
-        return new ItemRestoreTokenClaim(status, null);
+    private static <T> RestoreTokenClaim<T> claim(
+            RestoreTokenClaim.Status status) {
+        return new RestoreTokenClaim<>(status, null);
     }
 
     private static String hash(
-            long itemId, long deletedVersion) {
+            long resourceId, long deletedVersion) {
         try {
             MessageDigest digest =
                     MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(
-                    (itemId + ":" + deletedVersion)
+                    (resourceId + ":" + deletedVersion)
                             .getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(bytes);
         } catch (NoSuchAlgorithmException exception) {

@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.item.infrastructure.idempotency;
+package com.shaopc.worthit.tracking.idempotency.infrastructure;
 
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -9,10 +9,10 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * Item 创建幂等记录 Mapper。
+ * Tracking 幂等记录 Mapper。
  */
 @Mapper
-public interface ItemIdempotencyMapper {
+public interface IdempotencyMapper {
 
     /**
      * 首次调用占位；唯一键冲突时不覆盖原记录。
@@ -29,7 +29,7 @@ public interface ItemIdempotencyMapper {
                 #{createTime}, #{updateTime}
             )
             """)
-    int insertClaim(ItemIdempotencyDO record);
+    int insertClaim(IdempotencyDO record);
 
     /**
      * 锁定指定幂等记录，串行重放与首次结果写入。
@@ -46,7 +46,7 @@ public interface ItemIdempotencyMapper {
               AND idempotency_key = #{idempotencyKey}
             FOR UPDATE
             """)
-    ItemIdempotencyDO selectForUpdate(
+    IdempotencyDO selectForUpdate(
             @Param("userId") long userId,
             @Param("operationCode") String operationCode,
             @Param("idempotencyKey") String idempotencyKey);

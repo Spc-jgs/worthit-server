@@ -1,11 +1,9 @@
-package com.shaopc.worthit.tracking.item.infrastructure.outbox;
+package com.shaopc.worthit.tracking.outbox.infrastructure.persistence;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.reminder.client.command.ReconcileReminderCommand;
-import com.shaopc.worthit.tracking.item.application.ItemOutboxWriter;
-import com.shaopc.worthit.tracking.outbox.infrastructure.persistence.OutboxEventDO;
-import com.shaopc.worthit.tracking.outbox.infrastructure.persistence.OutboxEventMapper;
+import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -14,12 +12,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 把 Item 保修提醒完整期望写入本地 Outbox。
+ * 把 Tracking 聚合的提醒完整期望写入本地 Outbox。
  */
 @Repository
 @RequiredArgsConstructor
-public class MybatisItemOutboxWriter
-        implements ItemOutboxWriter {
+public class MybatisReminderOutboxWriter
+        implements ReminderOutboxWriter {
 
     private static final String EVENT_TYPE =
             "REMINDER_RECONCILE";
@@ -50,7 +48,7 @@ public class MybatisItemOutboxWriter
             mapper.insert(event);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
-                    "Item提醒Outbox序列化失败", exception);
+                    "提醒Outbox序列化失败", exception);
         }
     }
 }

@@ -1,10 +1,10 @@
-package com.shaopc.worthit.tracking.item.infrastructure.idempotency;
+package com.shaopc.worthit.tracking.idempotency.infrastructure;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.shaopc.worthit.tracking.item.application.ItemIdempotencyClaim;
-import com.shaopc.worthit.tracking.item.application.ItemIdempotencyStore;
+import com.shaopc.worthit.tracking.idempotency.application.IdempotencyClaim;
+import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -12,28 +12,27 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 
 /**
- * 基于 MySQL 唯一键和行锁实现 Item 写接口幂等。
+ * 基于 MySQL 唯一键和行锁实现 Tracking 写接口幂等。
  */
 @Repository
 @RequiredArgsConstructor
-public class MybatisItemIdempotencyStore
-        implements ItemIdempotencyStore {
+public class MybatisIdempotencyStore implements IdempotencyStore {
 
     private static final String PROCESSING = "PROCESSING";
     private static final String SUCCEEDED = "SUCCEEDED";
-    private final ItemIdempotencyMapper mapper;
+    private final IdempotencyMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock trackingClock;
 
     @Override
-    public <T> ItemIdempotencyClaim<T> claim(
+    public <T> IdempotencyClaim<T> claim(
             long userId,
             String operationCode,
             String idempotencyKey,
             String requestHash,
             Class<T> responseType) {
         LocalDateTime now = LocalDateTime.now(trackingClock);
-        ItemIdempotencyDO candidate = new ItemIdempotencyDO();
+        IdempotencyDO candidate = new IdempotencyDO();
         candidate.setId(IdWorker.getId());
         candidate.setUserId(userId);
         candidate.setOperationCode(operationCode);
@@ -46,22 +45,20 @@ public class MybatisItemIdempotencyStore
         candidate.setUpdateTime(now);
         int inserted = mapper.insertClaim(candidate);
 
-        ItemIdempotencyDO locked = mapper.selectForUpdate(
+        IdempotencyDO locked = mapper.selectForUpdate(
                 userId, operationCode, idempotencyKey);
         if (!requestHash.equals(locked.getRequestHash())) {
-            return new ItemIdempotencyClaim<>(
-                    ItemIdempotencyClaim.Status.CONFLICT,
-                    null);
+            return new IdempotencyClaim<>(
+                    IdempotencyClaim.Status.CONFLICT, null);
         }
         if (inserted == 1) {
-            return new ItemIdempotencyClaim<>(
-                    ItemIdempotencyClaim.Status.NEW,
-                    null);
+            return new IdempotencyClaim<>(
+                    IdempotencyClaim.Status.NEW, null);
         }
         if (SUCCEEDED.equals(locked.getStatus())
                 && locked.getResponseJson() != null) {
-            return new ItemIdempotencyClaim<>(
-                    ItemIdempotencyClaim.Status.REPLAY,
+            return new IdempotencyClaim<>(
+                    IdempotencyClaim.Status.REPLAY,
                     readResponse(
                             locked.getResponseJson(),
                             responseType));
@@ -87,11 +84,11 @@ public class MybatisItemIdempotencyStore
                     LocalDateTime.now(trackingClock));
             if (updated != 1) {
                 throw new IllegalStateException(
-                        "Item幂等结果写入失败");
+                        "Tracking幂等结果写入失败");
             }
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
-                    "Item幂等结果序列化失败", exception);
+                    "Tracking幂等结果序列化失败", exception);
         }
     }
 
@@ -102,7 +99,7 @@ public class MybatisItemIdempotencyStore
                     responseJson, responseType);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
-                    "Item幂等结果反序列化失败", exception);
+                    "Tracking幂等结果反序列化失败", exception);
         }
     }
 }

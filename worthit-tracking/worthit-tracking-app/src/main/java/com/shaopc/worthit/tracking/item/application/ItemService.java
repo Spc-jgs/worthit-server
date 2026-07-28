@@ -11,6 +11,11 @@ import com.shaopc.worthit.reminder.client.model.ReminderOperationType;
 import com.shaopc.worthit.reminder.client.model.ReminderType;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.idempotency.application.IdempotencyClaim;
+import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
+import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
+import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
+import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
 import com.shaopc.worthit.tracking.item.domain.Item;
 import com.shaopc.worthit.tracking.item.domain.ItemCost;
 import com.shaopc.worthit.tracking.item.domain.ItemCostCalculator;
@@ -18,6 +23,7 @@ import com.shaopc.worthit.tracking.item.domain.ItemDeletionState;
 import com.shaopc.worthit.tracking.item.domain.ItemErrorCode;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
+import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -42,12 +48,13 @@ public class ItemService {
     private static final String ITEM_CREATE = "ITEM_CREATE";
     private static final String ITEM_UPDATE = "ITEM_UPDATE";
     private static final String ITEM_DELETE = "ITEM_DELETE";
+    private static final String ITEM_RESTORE = "ITEM_RESTORE";
     private final ItemRepository itemRepository;
     private final CategoryRepository categoryRepository;
-    private final ItemIdempotencyStore idempotencyStore;
-    private final ItemRequestDigest requestDigest;
-    private final ItemOutboxWriter outboxWriter;
-    private final ItemRestoreTokenStore restoreTokenStore;
+    private final IdempotencyStore idempotencyStore;
+    private final RequestDigest requestDigest;
+    private final ReminderOutboxWriter outboxWriter;
+    private final RestoreTokenStore restoreTokenStore;
     private final CurrentUserProvider currentUserProvider;
     private final Clock trackingClock;
 
@@ -64,7 +71,7 @@ public class ItemService {
         validate(normalized, today);
 
         String requestHash = requestDigest.hash(normalized);
-        ItemIdempotencyClaim<ItemDetail> claim =
+        IdempotencyClaim<ItemDetail> claim =
                 idempotencyStore.claim(
                         userId,
                         ITEM_CREATE,
@@ -72,12 +79,12 @@ public class ItemService {
                         requestHash,
                         ItemDetail.class);
         if (claim.status()
-                == ItemIdempotencyClaim.Status.CONFLICT) {
+                == IdempotencyClaim.Status.CONFLICT) {
             throw new BusinessException(
                     ItemErrorCode.IDEM_CONFLICT);
         }
         if (claim.status()
-                == ItemIdempotencyClaim.Status.REPLAY) {
+                == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
         }
 
@@ -167,7 +174,7 @@ public class ItemService {
         UpdateItemCommand normalized = normalize(command);
         validate(normalized, today);
         String requestHash = requestDigest.hash(normalized);
-        ItemIdempotencyClaim<ItemDetail> claim =
+        IdempotencyClaim<ItemDetail> claim =
                 idempotencyStore.claim(
                         userId,
                         ITEM_UPDATE,
@@ -175,12 +182,12 @@ public class ItemService {
                         requestHash,
                         ItemDetail.class);
         if (claim.status()
-                == ItemIdempotencyClaim.Status.CONFLICT) {
+                == IdempotencyClaim.Status.CONFLICT) {
             throw new BusinessException(
                     ItemErrorCode.IDEM_CONFLICT);
         }
         if (claim.status()
-                == ItemIdempotencyClaim.Status.REPLAY) {
+                == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
         }
         Item existing = itemRepository.findByIdAndUserId(
@@ -243,7 +250,7 @@ public class ItemService {
         DeleteItemCommand command =
                 new DeleteItemCommand(itemId, version);
         String requestHash = requestDigest.hash(command);
-        ItemIdempotencyClaim<DeleteItemResult> claim =
+        IdempotencyClaim<DeleteItemResult> claim =
                 idempotencyStore.claim(
                         userId,
                         ITEM_DELETE,
@@ -251,12 +258,12 @@ public class ItemService {
                         requestHash,
                         DeleteItemResult.class);
         if (claim.status()
-                == ItemIdempotencyClaim.Status.CONFLICT) {
+                == IdempotencyClaim.Status.CONFLICT) {
             throw new BusinessException(
                     ItemErrorCode.IDEM_CONFLICT);
         }
         if (claim.status()
-                == ItemIdempotencyClaim.Status.REPLAY) {
+                == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
         }
         Item existing = itemRepository.findByIdAndUserId(
@@ -284,7 +291,11 @@ public class ItemService {
         LocalDateTime deadline =
                 now.plusSeconds(RESTORE_WINDOW_SECONDS);
         String restoreToken = restoreTokenStore.issue(
-                userId, itemId, deletedVersion, deadline);
+                userId,
+                ITEM_RESTORE,
+                itemId,
+                deletedVersion,
+                deadline);
         DeleteItemResult result = new DeleteItemResult(
                 itemId, deadline, restoreToken);
         idempotencyStore.complete(
@@ -310,18 +321,21 @@ public class ItemService {
                         .orElseThrow(() -> new BusinessException(
                                 CommonWebErrorCode.RES_NOT_FOUND));
         LocalDateTime now = LocalDateTime.now(trackingClock);
-        ItemRestoreTokenClaim claim = restoreTokenStore.claim(
-                userId,
-                itemId,
-                deletedVersion,
-                restoreToken,
-                now);
+        RestoreTokenClaim<ItemDetail> claim =
+                restoreTokenStore.claim(
+                        userId,
+                        ITEM_RESTORE,
+                        itemId,
+                        deletedVersion,
+                        restoreToken,
+                        now,
+                        ItemDetail.class);
         if (claim.status()
-                == ItemRestoreTokenClaim.Status.REPLAY) {
+                == RestoreTokenClaim.Status.REPLAY) {
             return claim.replay();
         }
         if (claim.status()
-                != ItemRestoreTokenClaim.Status.AVAILABLE
+                != RestoreTokenClaim.Status.AVAILABLE
                 || !state.deleted()
                 || state.item().version() != deletedVersion) {
             throw stateConflict();
@@ -339,6 +353,7 @@ public class ItemService {
                         "Item恢复后无法读取"));
         restoreTokenStore.complete(
                 userId,
+                ITEM_RESTORE,
                 itemId,
                 deletedVersion,
                 restoreToken,

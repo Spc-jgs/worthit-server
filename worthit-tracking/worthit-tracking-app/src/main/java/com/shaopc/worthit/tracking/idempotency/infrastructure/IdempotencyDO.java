@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.item.infrastructure.idempotency;
+package com.shaopc.worthit.tracking.idempotency.infrastructure;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -7,12 +7,12 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * {@code trk_idempotency_record} 的 Item 创建投影。
+ * {@code trk_idempotency_record} 持久化对象。
  */
 @Getter
 @Setter
 @NoArgsConstructor
-public class ItemIdempotencyDO {
+public class IdempotencyDO {
 
     private Long id;
     private Long userId;
