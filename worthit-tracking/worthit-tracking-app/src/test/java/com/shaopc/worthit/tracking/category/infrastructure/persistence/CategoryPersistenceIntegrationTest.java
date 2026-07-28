@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         properties = {
             "spring.cloud.nacos.config.enabled=false",
             "spring.cloud.nacos.discovery.enabled=false",
+            "worthit.outbox.relay.enabled=false",
             "sa-token.jwt-secret-key="
                     + "worthit-test-jwt-secret-key-at-least-thirty-two-bytes"
         })

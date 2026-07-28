@@ -1,4 +1,4 @@
-package com.shaopc.worthit.tracking.item.infrastructure.outbox;
+package com.shaopc.worthit.tracking.outbox.infrastructure.persistence;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -30,6 +30,11 @@ public class OutboxEventDO {
     private Integer schemaVersion;
     private String status;
     private Integer retryCount;
+    private LocalDateTime nextRetryAt;
+    private String lockedBy;
+    private LocalDateTime lockedAt;
+    private String lastError;
+    private LocalDateTime processedAt;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

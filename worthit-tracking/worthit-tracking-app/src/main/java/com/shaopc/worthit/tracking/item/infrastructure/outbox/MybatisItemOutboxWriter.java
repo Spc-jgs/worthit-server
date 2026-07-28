@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.reminder.client.command.ReconcileReminderCommand;
 import com.shaopc.worthit.tracking.item.application.ItemOutboxWriter;
+import com.shaopc.worthit.tracking.outbox.infrastructure.persistence.OutboxEventDO;
+import com.shaopc.worthit.tracking.outbox.infrastructure.persistence.OutboxEventMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
