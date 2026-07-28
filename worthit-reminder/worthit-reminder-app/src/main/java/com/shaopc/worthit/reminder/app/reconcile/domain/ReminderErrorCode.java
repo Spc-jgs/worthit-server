@@ -3,9 +3,14 @@ package com.shaopc.worthit.reminder.app.reconcile.domain;
 import com.shaopc.worthit.common.core.error.ErrorCode;
 
 /**
- * Reminder reconcile 稳定业务错误码。
+ * Reminder 稳定业务错误码。
  */
 public enum ReminderErrorCode implements ErrorCode {
+
+    /** 当前提醒状态不允许执行请求操作。 */
+    VAL_STATE_CONFLICT(
+            "VAL_STATE_CONFLICT",
+            "提醒状态不允许该操作"),
 
     /** 同一事件或来源版本对应了不同的期望状态。 */
     BIZ_CONTRACT_CONFLICT(
