@@ -6,6 +6,7 @@ import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.webmvc.error.DefaultErrorHttpStatusResolver;
 import com.shaopc.worthit.common.webmvc.error.WorthItRestExceptionHandler;
+import com.shaopc.worthit.tracking.item.application.DeleteItemResult;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -165,6 +168,84 @@ class ItemControllerTest {
                 .andExpect(jsonPath("$.data.hasMore").value(false));
 
         verify(itemService).list(1, 20, "Mac", null);
+    }
+
+    @Test
+    void updatesItemThroughPatchContract() throws Exception {
+        when(itemService.update(
+                eq(1938L), eq(IDEMPOTENCY_KEY), any()))
+                .thenReturn(itemDetail());
+
+        mockMvc.perform(patch("/api/v1/items/1938")
+                        .header(
+                                "Idempotency-Key",
+                                IDEMPOTENCY_KEY)
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "version":1,
+                                  "name":"MacBook Pro",
+                                  "categoryId":"100",
+                                  "purchasePrice":"1200.00",
+                                  "expectedYears":"2",
+                                  "residualValue":"0",
+                                  "purchaseDate":"2026-07-01",
+                                  "warrantyExpireDate":"2027-07-01",
+                                  "warrantyReminderEnabled":true,
+                                  "brandModel":"M4",
+                                  "remark":"办公使用"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value("1938"));
+    }
+
+    @Test
+    void deletesItemAndReturnsRestoreGrant() throws Exception {
+        when(itemService.delete(
+                1938L, 1L, IDEMPOTENCY_KEY))
+                .thenReturn(new DeleteItemResult(
+                        1938L,
+                        LocalDateTime.of(
+                                2026, 7, 26, 10, 1),
+                        "9d757d20-8570-453d-a990-00d1c6332ea5"));
+
+        mockMvc.perform(delete("/api/v1/items/1938")
+                        .header(
+                                "Idempotency-Key",
+                                IDEMPOTENCY_KEY)
+                        .param("version", "1")
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value("1938"))
+                .andExpect(jsonPath("$.data.restoreToken").value(
+                        "9d757d20-8570-453d-a990-00d1c6332ea5"));
+    }
+
+    @Test
+    void restoresItemWithVersionAndToken() throws Exception {
+        when(itemService.restore(
+                1938L,
+                2L,
+                "9d757d20-8570-453d-a990-00d1c6332ea5"))
+                .thenReturn(itemDetail());
+
+        mockMvc.perform(post("/api/v1/items/1938/restore")
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "version":2,
+                                  "restoreToken":
+                                    "9d757d20-8570-453d-a990-00d1c6332ea5"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value("1938"));
     }
 
     private static String validRequest() {

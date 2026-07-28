@@ -6,9 +6,11 @@ import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.common.web.response.ApiResponse;
 import com.shaopc.worthit.tracking.item.application.CreateItemCommand;
+import com.shaopc.worthit.tracking.item.application.DeleteItemResult;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
+import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,7 +21,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -66,12 +70,7 @@ public class ItemController {
             @Valid @RequestBody CreateItemRequest request,
             @RequestAttribute(SecurityHeaderNames.TRACE_ID)
             String traceId) {
-        if (idempotencyKey == null
-                || idempotencyKey.isBlank()) {
-            throw new BusinessException(
-                    CommonWebErrorCode.VAL_INVALID_ARGUMENT,
-                    "幂等键不能为空");
-        }
+        requireIdempotencyKey(idempotencyKey);
         return ApiResponse.success(
                 toResponse(itemService.create(
                         idempotencyKey, toCommand(request))),
@@ -143,6 +142,83 @@ public class ItemController {
                 traceId);
     }
 
+    /**
+     * 按版本更新物品。
+     */
+    @PatchMapping("/{id}")
+    @Operation(summary = "更新物品")
+    public ApiResponse<ItemDetailResponse> update(
+            @Positive @PathVariable("id") long itemId,
+            @RequestHeader(
+                    value = "Idempotency-Key",
+                    required = false)
+            @NotBlank(message = "幂等键不能为空")
+            @Pattern(
+                    regexp = UUID_PATTERN,
+                    message = "幂等键必须是UUID")
+            String idempotencyKey,
+            @Valid @RequestBody UpdateItemRequest request,
+            @RequestAttribute(SecurityHeaderNames.TRACE_ID)
+            String traceId) {
+        requireIdempotencyKey(idempotencyKey);
+        return ApiResponse.success(
+                toResponse(itemService.update(
+                        itemId,
+                        idempotencyKey,
+                        toCommand(request))),
+                traceId);
+    }
+
+    /**
+     * 逻辑删除物品并返回短时恢复凭据。
+     */
+    @DeleteMapping("/{id}")
+    @Operation(summary = "删除物品")
+    public ApiResponse<DeleteItemResponse> delete(
+            @Positive @PathVariable("id") long itemId,
+            @RequestHeader(
+                    value = "Idempotency-Key",
+                    required = false)
+            @NotBlank(message = "幂等键不能为空")
+            @Pattern(
+                    regexp = UUID_PATTERN,
+                    message = "幂等键必须是UUID")
+            String idempotencyKey,
+            @Positive
+            @RequestParam(name = "version")
+            long version,
+            @RequestAttribute(SecurityHeaderNames.TRACE_ID)
+            String traceId) {
+        requireIdempotencyKey(idempotencyKey);
+        DeleteItemResult result =
+                itemService.delete(
+                        itemId, version, idempotencyKey);
+        return ApiResponse.success(
+                new DeleteItemResponse(
+                        Long.toString(result.id()),
+                        result.restoreDeadline(),
+                        result.restoreToken()),
+                traceId);
+    }
+
+    /**
+     * 在服务端恢复窗口内恢复物品。
+     */
+    @PostMapping("/{id}/restore")
+    @Operation(summary = "短时恢复物品")
+    public ApiResponse<ItemDetailResponse> restore(
+            @Positive @PathVariable("id") long itemId,
+            @Valid @RequestBody RestoreItemRequest request,
+            @RequestAttribute(SecurityHeaderNames.TRACE_ID)
+            String traceId) {
+        return ApiResponse.success(
+                toResponse(itemService.restore(
+                        itemId,
+                        request.version(),
+                        request.restoreToken())),
+                traceId);
+    }
+
     private static CreateItemCommand toCommand(
             CreateItemRequest request) {
         return new CreateItemCommand(
@@ -160,6 +236,36 @@ public class ItemController {
                 request.warrantyReminderEnabled(),
                 request.brandModel(),
                 request.remark());
+    }
+
+    private static UpdateItemCommand toCommand(
+            UpdateItemRequest request) {
+        return new UpdateItemCommand(
+                request.version(),
+                request.name(),
+                request.categoryId() == null
+                        ? null
+                        : Long.valueOf(request.categoryId()),
+                new BigDecimal(request.purchasePrice()),
+                new BigDecimal(request.expectedYears()),
+                request.residualValue() == null
+                        ? null
+                        : new BigDecimal(request.residualValue()),
+                request.purchaseDate(),
+                request.warrantyExpireDate(),
+                request.warrantyReminderEnabled(),
+                request.brandModel(),
+                request.remark());
+    }
+
+    private static void requireIdempotencyKey(
+            String idempotencyKey) {
+        if (idempotencyKey == null
+                || idempotencyKey.isBlank()) {
+            throw new BusinessException(
+                    CommonWebErrorCode.VAL_INVALID_ARGUMENT,
+                    "幂等键不能为空");
+        }
     }
 
     private ItemDetailResponse toResponse(ItemDetail detail) {
