@@ -18,7 +18,7 @@ RED → GREEN → REFACTOR，并按“状态机、应用编排、持久化、API
 - 后端架构 V0.3.16：Tracking 生命周期模块、Item 不变量、业务状态与逻辑删除、
   Outbox/Reminder reconcile。
 - 接口设计 V0.1.2：M1 公网契约及 M2 路由占位。
-- 数据库模型 V0.3.4 与
+- 数据库模型 V0.3.5 与
   `flyway/tracking_m2/V2__add_item_lifecycle.sql`：处置事实、替换关系、
   唯一约束和卖出金额约束。
 - 技术门禁 V0.2.3、产品验收 V0.4.2：现行 M1 门禁及尚未展开的 M2 追溯项。
@@ -78,7 +78,11 @@ Domain 由具名行为完成转换。逻辑删除 `del_flag` 与生命周期状�
 - 强制 UUID 格式 `Idempotency-Key`；
 - Snowflake ID 在 JSON 中使用字符串；
 - 金额以十进制字符串传输；
-- 同键同摘要重放原结果，同键不同摘要返回 `IDEM_CONFLICT`；
+- 同键同摘要重放已持久化的成功结果，或通过 HTTP/Bean Validation 后进入用例的
+  终结性业务 `400/404/409` 失败；同键不同摘要对 `SUCCEEDED/FAILED` 均返回
+  `IDEM_CONFLICT`；
+- JSON 解析、请求头格式和 Bean Validation 失败发生在 claim 前，不持久化结果；
+- 技术性 `5xx` 不固化为 `FAILED`，`PROCESSING` lease 到期后允许安全重试；
 - 幂等操作码按路由冻结为 `ITEM_RETURN / ITEM_SELL / ITEM_SCRAP /
   ITEM_REPLACE`，客户端不得传入或覆盖；
 - 已删除、不存在或不属于当前用户统一返回 `404 RES_NOT_FOUND`；
@@ -113,8 +117,10 @@ Domain 由具名行为完成转换。逻辑删除 `del_flag` 与生命周期状�
 }
 ```
 
-`saleDate`、`saleAmount` 必填，金额必须大于等于 0。成功后状态为 `SOLD`；
-基础净成本为 `purchasePrice - saleAmount`，允许为负，不因盈利截断为 0。
+`saleDate`、`saleAmount` 必填，金额必须满足 `DECIMAL(18,6)`：precision 不超过
+18、scale 不超过 6、值位于 `0~999999999999.999999`。成功后状态为 `SOLD`；
+处置时固化 `purchasePriceSnapshot`，基础净成本为
+`purchasePriceSnapshot - saleAmount`，允许为负，不因盈利截断为 0。
 
 ### 5.3 报废
 
@@ -149,9 +155,11 @@ Domain 由具名行为完成转换。逻辑删除 `del_flag` 与生命周期状�
 }
 ```
 
-`netCost` 仅 `SOLD` 返回；其他类型为 `null`。`GET /api/v1/items/{id}` 在 M2
-增加同结构的 nullable `disposal`；`HOLDING` 时为 `null`，终态时必须存在且类型与
-状态一致。列表继续返回 `lifecycleStatus`，不携带完整处置事实。
+`netCost` 仅 `SOLD` 返回；其他类型为 `null`。它始终由处置事实中的不可变
+`purchasePriceSnapshot` 计算，后续修改 Item 购买价不得改写历史。`GET
+/api/v1/items/{id}` 在 M2 增加同结构的 nullable `disposal`；`HOLDING` 时为
+`null`，终态时必须存在且类型与状态一致。列表继续返回 `lifecycleStatus`，不携带
+完整处置事实。
 
 ### 5.5 替换关系
 
@@ -186,11 +194,14 @@ Gateway 必须新增 `/api/v1/lifecycle/** → worthit-tracking` 公网路由，
 
 ## 6. 数据库与事务边界
 
-沿用数据库模型 V0.3.4 和现行 M2 `V2__add_item_lifecycle.sql`，本轮无 DDL 变化：
+数据库模型升级为 V0.3.5，并冻结尚未进入 App/生产的 M2
+`V2__add_item_lifecycle.sql`：
 
 - `trk_item.lifecycle_status` 保存当前状态，`version` 承担乐观锁；
 - `trk_item_disposal` 保存不可变处置事实，`UNIQUE(item_id)` 保证一件物品最多
   一条处置；
+- `purchase_price_snapshot DECIMAL(18,6) NOT NULL` 固化处置时购买价，CHECK
+  保证非负；历史净成本不再依赖可编辑的 `trk_item.purchase_price`；
 - `disposal_type` 仅允许 `RETURNED / SOLD / SCRAPPED`；
 - `SOLD` 必须有非负 `sale_amount`，其他类型必须为空；
 - `trk_item_replacement` 的 `UNIQUE(old_item_id)` 和 `UNIQUE(new_item_id)`
@@ -202,7 +213,7 @@ Gateway 必须新增 `/api/v1/lifecycle/** → worthit-tracking` 公网路由，
 
 1. 按 `id + user_id + del_flag=0 + version + lifecycle_status=HOLDING` 条件更新
    `trk_item`，状态进入目标终态且版本加一；
-2. 写入 `trk_item_disposal`；
+2. 写入含 `purchase_price_snapshot` 的 `trk_item_disposal`；
 3. 以新版本写入 Reminder 期望 Outbox，`operationType=DISPOSE_ITEM`；
 4. 任一步失败则全部回滚。
 
@@ -240,7 +251,7 @@ ItemLifecycleServiceImpl
         │
         ├── Item 聚合状态机
         ├── ItemLifecycleRepository（端口）
-        ├── IdempotencyStore
+        ├── IdempotencyExecutionCoordinator
         └── OutboxWriter
                 │
                 ▼
@@ -250,6 +261,10 @@ MybatisItemLifecycleRepository
 - Interfaces 只做 HTTP、Bean Validation、身份与 DTO 转换。
 - Application 使用 `ItemLifecycleService` 接口和同包
   `ItemLifecycleServiceImpl`；Controller 只依赖接口。
+- `IdempotencyExecutionCoordinator` 以独立短事务提交 `PROCESSING` claim；
+  业务成功与 `SUCCEEDED` 原子提交；进入用例后的终结性业务异常在业务事务回滚后
+  以独立事务固化安全的 `FAILED` 响应；技术性 `5xx` 不固化，交给 lease 到期
+  重试。HTTP/Bean Validation 继续位于 claim 之前。
 - Domain 拥有 `ItemLifecycleStatus`、`DisposalType`、日期/金额不变量和单向转换，
   不依赖 Spring Web 或 MyBatis。
 - Infrastructure 拥有 DO、Mapper、条件更新、唯一约束异常翻译和读模型查询。
@@ -265,15 +280,16 @@ MybatisItemLifecycleRepository
 
 - `HOLDING` 分别转 `RETURNED / SOLD / SCRAPPED`。
 - 任一终态拒绝再次处置或终态互转。
-- 未来日期、早于购买日期、负卖出金额被拒绝。
+- 未来日期、早于购买日期、负卖出金额、precision 超过 18 或 scale 超过 6 被拒绝。
 - `SOLD` 必须有金额，其他处置类型禁止金额。
-- 基础净成本保留精度并允许负数。
+- 基础净成本使用处置购买价快照、保留精度并允许负数。
 
 ### 9.2 RED：Application
 
 - 成功处置原子更新 Item、Disposal 和 Outbox。
 - Item 条件更新失败时不写 Disposal/Outbox。
-- 同一幂等键同请求重放原结果，不重复写库；不同摘要冲突。
+- 同一幂等键同请求重放成功或终结性业务失败，不重复执行；不同摘要冲突；技术性
+  `5xx` 在 lease 到期后可安全重试。
 - 相同版本并发不同处置仅一个成功，失败方得到 `VAL_STATE_CONFLICT`。
 - Outbox 使用新 `sourceVersion`、服务端 `DISPOSE_ITEM` 和完整终态期望。
 - 替换关系不改变 Item 状态和版本。
@@ -288,10 +304,11 @@ MybatisItemLifecycleRepository
 ### 9.4 MySQL 8.4 / Testcontainers
 
 - 空库顺序执行 Tracking V1 + M2 V2。
-- `uk_disposal_item`、三项 CHECK、两个 Replacement UNIQUE 全部生效。
+- `purchase_price_snapshot` 必填非负，`uk_disposal_item`、四项 CHECK、两个
+  Replacement UNIQUE 全部生效。
 - 条件更新与并发处置只产生一个终态、一条 Disposal、一个 Outbox。
 - 事务回滚不留下半成品。
-- Dashboard 排除终态；复盘保留已删除物品历史。
+- Dashboard 排除终态；复盘保留已删除物品历史；修改 Item 购买价不改变历史净成本。
 
 ### 9.5 E2E
 
@@ -317,7 +334,7 @@ Flyway 已经是当前项目的数据库迁移工具，不是本轮建议引入�
 若后续单独治理，应：
 
 1. 升级现有 Flyway 到明确支持 MySQL 8.4 的版本，不并行引入第二套迁移工具；
-2. 在 MySQL 8.4 Testcontainers 上验证空库迁移和已有 V1 → V2 升级路径；
+2. 在 MySQL 8.4 Testcontainers 上验证空库迁移和已有 V1 → 冻结版 V2 升级路径；
 3. 校验 schema history、重复启动、失败恢复、CHECK/生成列/索引；
 4. 通过依赖树、全仓测试和 CI 后再合并，并保留版本回退方案。
 
@@ -331,7 +348,7 @@ Flyway 已经是当前项目的数据库迁移工具，不是本轮建议引入�
 - 接口：V0.2；
 - 技术门禁：V0.3；
 - 产品验收：V0.5；
-- 数据库：继续使用 V0.3.4 和现行 M2 V2 SQL，无 DDL 变化。
+- 数据库：V0.3.5；在尚未发布的 M2 V2 SQL 中增加不可变购买价快照。
 
 DOCX 先修改并逐页渲染；同版本 Markdown 后同步。`../docs` 不属于后端 Git
 仓库，权威文档本地定稿与后端 PR 分开交付；后端 PR 提交本设计和可检查的追溯

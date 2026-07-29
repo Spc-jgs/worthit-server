@@ -9,7 +9,7 @@
 - PRD V0.15.6；
 - 架构 V0.3.17；
 - 接口 V0.2；
-- 数据库 V0.3.4 与 Tracking M2 V2 SQL；
+- 数据库 V0.3.5 与 Tracking M2 V2 SQL；
 - 技术门禁 V0.3；
 - 产品验收 V0.5；
 - `2026-07-29-m2-item-lifecycle-contract-design.md`。
@@ -44,7 +44,7 @@
 先新增 MySQL 8.4 Testcontainers 失败测试：
 
 - Tracking V1→V2 顺序迁移；
-- Disposal CHECK/UNIQUE；
+- Disposal 购买价快照、CHECK/UNIQUE；
 - Replacement 两个 UNIQUE 和 old≠new CHECK；
 - 条件更新只接受 `user_id + del_flag=0 + version + HOLDING`。
 
@@ -52,6 +52,7 @@
 
 - 将冻结的 V2 SQL 放入 Tracking App 迁移执行源；
 - 文档 SQL 与执行源做 SHA/内容一致性检查；
+- `purchase_price_snapshot` 必填非负，处置持久化不得回查可编辑 Item 价格计算历史；
 - Repository 端口不泄漏 DO/Mapper；
 - MyBatis 实现翻译唯一约束和条件更新结果，不用异常消息承担公网机器契约。
 
@@ -64,7 +65,8 @@
 先写 Application 和 API RED：
 
 - 成功事务更新 Item、写 Disposal、写 Outbox；
-- `ITEM_RETURN` 幂等首次、重放、摘要冲突；
+- `ITEM_RETURN` 幂等首次、成功/进入用例后的终结性失败重放、摘要冲突及技术失败
+  lease 重试；claim 前的 HTTP/Bean Validation 失败不持久化；
 - 日期/版本/状态/越权错误；
 - Reminder 完整期望使用 `DISPOSE_ITEM`；
 - Controller 只依赖 `ItemLifecycleService`。
@@ -73,6 +75,8 @@
 
 - `ItemLifecycleService` 为接口；
 - `ItemLifecycleServiceImpl` 承载事务与用例编排；
+- `IdempotencyExecutionCoordinator` 以独立短事务提交 claim；成功与业务事务原子
+  完成，终结性失败在回滚后独立固化，技术性失败不固化；
 - `ReturnItemRequest → ReturnItemCommand → Domain → DO` 显式转换；
 - Response 与 OpenAPI 使用冻结字段和中文描述。
 
@@ -84,9 +88,10 @@
 
 先写 RED：
 
-- 必填非负十进制金额；
+- 必填非负十进制金额及 `DECIMAL(18,6)` precision/scale 边界；
 - `ITEM_SELL` 幂等与并发；
-- 净成本为购买价减卖出金额，允许负数；
+- 净成本使用处置时购买价快照减卖出金额，允许负数；
+- 卖出后修改 Item 购买价，详情与复盘历史净成本保持不变；
 - 详情和统一处置响应字段。
 
 复用共享编排的前提是语义、所有权和变化原因一致；不得把 return/sell/scrap 做成
