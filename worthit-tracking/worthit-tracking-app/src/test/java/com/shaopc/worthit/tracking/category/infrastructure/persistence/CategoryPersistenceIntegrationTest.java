@@ -23,7 +23,10 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -55,6 +58,9 @@ class CategoryPersistenceIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock trackingClock;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -143,7 +149,8 @@ class CategoryPersistenceIntegrationTest {
         Category category = categoryService.create("数码");
         insertBusinessReference(businessType, category.id());
         markBusinessReferenceDeleted(
-                businessType, LocalDateTime.now().minusSeconds(30));
+                businessType,
+                LocalDateTime.now(trackingClock).minusSeconds(30));
 
         assertThatThrownBy(() -> categoryService.delete(category.id()))
                 .isInstanceOfSatisfying(
@@ -162,7 +169,8 @@ class CategoryPersistenceIntegrationTest {
         Category category = categoryService.create("数码");
         insertBusinessReference(businessType, category.id());
         markBusinessReferenceDeleted(
-                businessType, LocalDateTime.now().minusSeconds(61));
+                businessType,
+                LocalDateTime.now(trackingClock).minusSeconds(61));
 
         categoryService.delete(category.id());
 
@@ -310,6 +318,14 @@ class CategoryPersistenceIntegrationTest {
         @Primary
         CurrentUserProvider fixedCurrentUserProvider() {
             return () -> new UserContext(USER_ID);
+        }
+
+        @Bean
+        @Primary
+        Clock fixedTrackingClock() {
+            return Clock.fixed(
+                    Instant.parse("2026-07-29T09:00:00Z"),
+                    ZoneId.of("Asia/Shanghai"));
         }
     }
 }
