@@ -9,14 +9,16 @@ import com.shaopc.worthit.reminder.client.contract.ReminderClientContract;
 import com.shaopc.worthit.reminder.client.model.ReminderBusinessType;
 import com.shaopc.worthit.reminder.client.model.ReminderOperationType;
 import com.shaopc.worthit.reminder.client.model.ReminderType;
+import com.shaopc.worthit.tracking.category.application.CategoryReferenceResolver;
 import com.shaopc.worthit.tracking.category.domain.Category;
-import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyClaim;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreClaimCoordinator;
+import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import com.shaopc.worthit.tracking.subscription.domain.AutoRenew;
 import com.shaopc.worthit.tracking.subscription.domain.BillingCycleType;
@@ -47,7 +49,6 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class SubscriptionService {
 
-    private static final long RESTORE_WINDOW_SECONDS = 60;
     private static final String SUB_CREATE = "SUB_CREATE";
     private static final String SUB_UPDATE = "SUB_UPDATE";
     private static final String SUB_PAUSE = "SUB_PAUSE";
@@ -57,13 +58,15 @@ public class SubscriptionService {
     private static final String SUB_RESTORE = "SUB_RESTORE";
 
     private final SubscriptionRepository repository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryReferenceResolver categoryReferenceResolver;
     private final IdempotencyStore idempotencyStore;
     private final RequestDigest requestDigest;
     private final ReminderOutboxWriter outboxWriter;
     private final RestoreTokenStore restoreTokenStore;
     private final CurrentUserProvider currentUserProvider;
     private final Clock trackingClock;
+    private final RestoreWindowPolicy restoreWindowPolicy;
+    private final RestoreClaimCoordinator restoreClaimCoordinator;
 
     /**
      * 幂等创建订阅。
@@ -88,7 +91,7 @@ public class SubscriptionService {
             return claim.replay();
         }
 
-        Category category = resolveCategory(
+        Category category = categoryReferenceResolver.resolve(
                 normalized.categoryId(), userId);
         LocalDateTime now = now();
         boolean reminderEnabled =
@@ -192,7 +195,7 @@ public class SubscriptionService {
         Subscription existing = required(
                 subscriptionId, userId).subscription();
         requireVersion(existing, normalized.version());
-        Category category = resolveCategory(
+        Category category = categoryReferenceResolver.resolve(
                 normalized.categoryId(), userId);
         boolean reminderEnabled =
                 reminderEnabled(normalized);
@@ -389,7 +392,7 @@ public class SubscriptionService {
                 ReminderOperationType.DELETE_OBJECT);
 
         LocalDateTime deadline =
-                now.plusSeconds(RESTORE_WINDOW_SECONDS);
+                restoreWindowPolicy.deadlineFrom(now);
         String restoreToken = restoreTokenStore.issue(
                 userId,
                 SUB_RESTORE,
@@ -428,14 +431,16 @@ public class SubscriptionService {
                                                 .RES_NOT_FOUND));
         LocalDateTime now = now();
         RestoreTokenClaim<SubscriptionDetail> claim =
-                restoreTokenStore.claim(
-                        userId,
-                        SUB_RESTORE,
-                        subscriptionId,
-                        deletedVersion,
-                        restoreToken,
-                        now,
-                        SubscriptionDetail.class);
+                restoreClaimCoordinator
+                        .claimWithCategoryReservation(
+                                userId,
+                                state.subscription().categoryId(),
+                                SUB_RESTORE,
+                                subscriptionId,
+                                deletedVersion,
+                                restoreToken,
+                                now,
+                                SubscriptionDetail.class);
         if (claim.status()
                 == RestoreTokenClaim.Status.REPLAY) {
             return claim.replay();
@@ -609,18 +614,6 @@ public class SubscriptionService {
             long subscriptionId,
             long userId) {
         return toDetail(required(subscriptionId, userId));
-    }
-
-    private Category resolveCategory(
-            Long categoryId, long userId) {
-        if (categoryId == null) {
-            return categoryRepository
-                    .getOrCreateUncategorized(userId);
-        }
-        return categoryRepository.findByIdAndUserId(
-                        categoryId, userId)
-                .orElseThrow(() -> new BusinessException(
-                        CommonWebErrorCode.RES_NOT_FOUND));
     }
 
     private SubscriptionDetail toDetail(

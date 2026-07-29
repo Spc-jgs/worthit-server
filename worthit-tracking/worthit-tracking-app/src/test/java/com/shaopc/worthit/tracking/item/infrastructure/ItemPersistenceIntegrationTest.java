@@ -240,6 +240,35 @@ class ItemPersistenceIntegrationTest {
     }
 
     @Test
+    void listTotalMatchesItemsWhenLegacyOrphanExists() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "历史孤儿",
+                        null,
+                        "1000",
+                        "1",
+                        null,
+                        null,
+                        null,
+                        false));
+        jdbcTemplate.update(
+                """
+                UPDATE trk_category
+                SET del_flag = 1, delete_time = ?
+                WHERE id = ?
+                """,
+                TODAY.atStartOfDay(),
+                created.categoryId());
+
+        PageResult<ItemSummary> result =
+                itemService.list(1, 20, null, null);
+
+        assertThat(result.getItems()).isEmpty();
+        assertThat(result.getTotal()).isZero();
+    }
+
+    @Test
     void rejectsFuturePurchaseDateAndEnabledReminderWithoutDate() {
         assertThatThrownBy(() -> itemService.create(
                 UUID.randomUUID().toString(),

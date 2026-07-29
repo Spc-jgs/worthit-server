@@ -1,5 +1,6 @@
 package com.shaopc.worthit.tracking.category.domain;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,26 @@ public interface CategoryRepository {
     Optional<Category> findByIdAndUserId(long categoryId, long userId);
 
     /**
+     * 按用户和分类标识锁定有效分类。
+     *
+     * @param categoryId 分类标识
+     * @param userId 用户标识
+     * @return 分类；不存在、已删除或不属于用户时为空
+     */
+    Optional<Category> findByIdAndUserIdForUpdate(
+            long categoryId, long userId);
+
+    /**
+     * 按用户和分类标识锁定有效自定义分类。
+     *
+     * @param categoryId 分类标识
+     * @param userId 用户标识
+     * @return 自定义分类；系统、无效或越权分类为空
+     */
+    Optional<Category> findCustomByIdAndUserIdForUpdate(
+            long categoryId, long userId);
+
+    /**
      * 创建自定义分类。
      *
      * @param userId 用户标识
@@ -43,13 +64,17 @@ public interface CategoryRepository {
     Category getOrCreateUncategorized(long userId);
 
     /**
-     * 判断分类是否仍被有效业务数据引用。
+     * 判断分类是否仍被有效或可恢复业务数据引用。
      *
      * @param categoryId 分类标识
      * @param userId 用户标识
+     * @param earliestRestorableDeletion 可恢复删除时间下界
      * @return 有任一有效引用时为 true
      */
-    boolean isInUse(long categoryId, long userId);
+    boolean isInUse(
+            long categoryId,
+            long userId,
+            LocalDateTime earliestRestorableDeletion);
 
     /**
      * 逻辑删除用户分类。

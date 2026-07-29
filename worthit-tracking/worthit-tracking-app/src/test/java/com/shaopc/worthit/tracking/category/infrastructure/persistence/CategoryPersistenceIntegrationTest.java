@@ -23,7 +23,10 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -55,6 +58,9 @@ class CategoryPersistenceIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock trackingClock;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -136,6 +142,42 @@ class CategoryPersistenceIntegrationTest {
                 .getDelFlag()).isFalse();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"ITEM", "SUBSCRIPTION", "WISH"})
+    void restorableDeletedReferencePreventsCategoryDeletion(
+            String businessType) {
+        Category category = categoryService.create("数码");
+        insertBusinessReference(businessType, category.id());
+        markBusinessReferenceDeleted(
+                businessType,
+                LocalDateTime.now(trackingClock).minusSeconds(30));
+
+        assertThatThrownBy(() -> categoryService.delete(category.id()))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("BIZ_CATEGORY_IN_USE"));
+
+        assertThat(categoryMapper.selectById(category.id())
+                .getDelFlag()).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ITEM", "SUBSCRIPTION", "WISH"})
+    void expiredDeletedReferenceDoesNotPreventCategoryDeletion(
+            String businessType) {
+        Category category = categoryService.create("数码");
+        insertBusinessReference(businessType, category.id());
+        markBusinessReferenceDeleted(
+                businessType,
+                LocalDateTime.now(trackingClock).minusSeconds(61));
+
+        categoryService.delete(category.id());
+
+        assertThat(categoryMapper.selectById(category.id())
+                .getDelFlag()).isTrue();
+    }
+
     private CategoryDO insertCategory(
             String name, String systemCode) {
         LocalDateTime now = LocalDateTime.of(
@@ -163,6 +205,21 @@ class CategoryPersistenceIntegrationTest {
             default -> throw new IllegalArgumentException(
                     "不支持的业务类型：" + businessType);
         }
+    }
+
+    private void markBusinessReferenceDeleted(
+            String businessType, LocalDateTime deleteTime) {
+        String table = switch (businessType) {
+            case "ITEM" -> "trk_item";
+            case "SUBSCRIPTION" -> "trk_subscription";
+            case "WISH" -> "trk_wish";
+            default -> throw new IllegalArgumentException(
+                    "不支持的业务类型：" + businessType);
+        };
+        jdbcTemplate.update(
+                "UPDATE " + table
+                        + " SET del_flag = 1, delete_time = ?",
+                deleteTime);
     }
 
     private void insertItem(long categoryId) {
@@ -261,6 +318,14 @@ class CategoryPersistenceIntegrationTest {
         @Primary
         CurrentUserProvider fixedCurrentUserProvider() {
             return () -> new UserContext(USER_ID);
+        }
+
+        @Bean
+        @Primary
+        Clock fixedTrackingClock() {
+            return Clock.fixed(
+                    Instant.parse("2026-07-29T09:00:00Z"),
+                    ZoneId.of("Asia/Shanghai"));
         }
     }
 }
