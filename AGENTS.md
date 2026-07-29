@@ -19,6 +19,9 @@
 `rules/30-spring-maven.md` 和 `rules/40-testing-quality.md`，并执行公网/内部
 文档分组及 Servlet/WebFlux 依赖隔离门禁。
 
+项目 Maven 构建统一使用仓库根目录 `./mvnw`，以 Wrapper 固定的 Maven 和校验值
+为准；不得用开发机或 CI 预装 Maven 的偶然版本作为通过证据。
+
 ## 规则优先级
 
 1. 用户在当前任务中的明确要求。

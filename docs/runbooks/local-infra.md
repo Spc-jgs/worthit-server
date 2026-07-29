@@ -111,7 +111,7 @@ scripts/local-infra/nacos-config.sh verify
 ### 4. 构建并启动四服务
 
 ```bash
-mvn -DskipTests package
+./mvnw -DskipTests package
 export WORTHIT_LOG_DIR="$(mktemp -d /tmp/worthit-phase0.XXXXXX)"
 
 nohup java -jar \
