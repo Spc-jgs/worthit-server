@@ -34,7 +34,7 @@ class CategoryServiceTest {
     @BeforeEach
     void setUp() {
         repository = new InMemoryCategoryRepository();
-        service = new CategoryService(
+        service = new CategoryServiceImpl(
                 repository,
                 () -> new UserContext(USER_ID),
                 new RestoreWindowPolicy(),

@@ -25,7 +25,7 @@ class PasswordAuthenticationServiceTest {
                 activeUser(), "encoded:correct-password");
         FakeUserSession session = new FakeUserSession();
         PasswordAuthenticationService service =
-                new PasswordAuthenticationService(
+                new PasswordAuthenticationServiceImpl(
                         repository, new FakePasswordHasher(), session);
 
         AuthenticationResult result = service.login(
@@ -45,7 +45,7 @@ class PasswordAuthenticationServiceTest {
                 new FakePasswordCredentialRepository();
         FakePasswordHasher hasher = new FakePasswordHasher();
         PasswordAuthenticationService service =
-                new PasswordAuthenticationService(
+                new PasswordAuthenticationServiceImpl(
                         repository, hasher, new FakeUserSession());
 
         assertUnauthorized(() -> service.login(
@@ -67,7 +67,7 @@ class PasswordAuthenticationServiceTest {
                 "encoded:correct-password");
         FakeUserSession session = new FakeUserSession();
         PasswordAuthenticationService service =
-                new PasswordAuthenticationService(
+                new PasswordAuthenticationServiceImpl(
                         repository, new FakePasswordHasher(), session);
 
         assertThatThrownBy(() -> service.login(

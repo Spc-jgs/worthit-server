@@ -102,9 +102,9 @@ class AuthenticationServiceTest {
     private AuthenticationService service(
             FakeAuthUserRepository repository,
             FakeUserSession session) {
-        return new AuthenticationService(
+        return new AuthenticationServiceImpl(
                 code -> WECHAT_IDENTITY,
-                new WechatUserRegistrationService(repository),
+                new WechatUserRegistrationServiceImpl(repository),
                 repository,
                 session);
     }

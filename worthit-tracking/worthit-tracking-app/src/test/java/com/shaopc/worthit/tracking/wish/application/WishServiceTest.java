@@ -56,7 +56,7 @@ class WishServiceTest {
         Clock clock = Clock.fixed(
                 Instant.parse("2026-07-28T16:00:00Z"),
                 ZoneId.of("Asia/Shanghai"));
-        service = new WishService(
+        service = new WishServiceImpl(
                 wishRepository,
                 itemRepository,
                 categoryReferenceResolver,
