@@ -250,6 +250,32 @@ class SubscriptionControllerTest {
                         .value("VAL_INVALID_ARGUMENT"));
     }
 
+    @Test
+    void rejectsCategoryIdBeyondPositiveLongRange()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/subscriptions")
+                        .param("categoryId", "9223372036854775808")
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID,
+                                TRACE_ID))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VAL_INVALID_ARGUMENT"));
+
+        mockMvc.perform(post("/api/v1/subscriptions")
+                        .header("Idempotency-Key", KEY)
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID,
+                                TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validCreate().replace(
+                                "\"categoryId\":null",
+                                "\"categoryId\":\"9223372036854775808\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VAL_INVALID_ARGUMENT"));
+    }
+
     private static String validCreate() {
         return """
                 {

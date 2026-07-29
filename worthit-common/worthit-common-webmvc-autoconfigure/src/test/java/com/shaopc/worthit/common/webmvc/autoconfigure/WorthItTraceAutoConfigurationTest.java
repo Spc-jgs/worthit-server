@@ -1,5 +1,6 @@
 package com.shaopc.worthit.common.webmvc.autoconfigure;
 
+import cn.dev33.satoken.util.SaTokenConsts;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.core.trace.UuidTraceIdGenerator;
 import com.shaopc.worthit.common.webmvc.trace.TrustedTraceIdFilter;
@@ -34,7 +35,8 @@ class WorthItTraceAutoConfigurationTest {
             assertThat(registration.getFilter())
                     .isSameAs(context.getBean(TrustedTraceIdFilter.class));
             assertThat(registration.getOrder())
-                    .isEqualTo(Integer.MIN_VALUE + 20);
+                    .isEqualTo(
+                            SaTokenConsts.SA_TOKEN_CONTEXT_FILTER_ORDER + 20);
         });
     }
 

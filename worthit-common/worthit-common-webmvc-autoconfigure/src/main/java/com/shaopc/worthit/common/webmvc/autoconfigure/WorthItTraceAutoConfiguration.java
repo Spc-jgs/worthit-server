@@ -12,7 +12,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -69,7 +68,7 @@ public class WorthItTraceAutoConfiguration {
             trustedTraceIdFilterRegistration(TrustedTraceIdFilter filter) {
         FilterRegistrationBean<TrustedTraceIdFilter> registration =
                 new FilterRegistrationBean<>(filter);
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
+        registration.setOrder(WorthItServletFilterOrder.TRUSTED_TRACE);
         return registration;
     }
 }

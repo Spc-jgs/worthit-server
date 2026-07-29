@@ -20,10 +20,21 @@ public interface ItemRepository {
     Item create(Item item);
 
     /**
+     * 从想买转换创建物品，并写入数据库唯一来源标识。
+     */
+    Item createFromWish(Item item, long sourceWishId);
+
+    /**
      * 查询用户可见的有效物品详情。
      */
     Optional<ItemWithCategory> findByIdAndUserId(
             long itemId, long userId);
+
+    /**
+     * 查询当前用户由指定想买转换出的有效物品。
+     */
+    Optional<ItemWithCategory> findBySourceWishId(
+            long sourceWishId, long userId);
 
     /**
      * 查询用户物品的删除状态，包含已逻辑删除数据。

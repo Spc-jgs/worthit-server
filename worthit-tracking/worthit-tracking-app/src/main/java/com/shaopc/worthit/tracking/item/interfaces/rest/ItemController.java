@@ -11,6 +11,7 @@ import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
 import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
+import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -125,9 +126,7 @@ public class ItemController {
                 page,
                 size,
                 keyword,
-                categoryId == null
-                        ? null
-                        : Long.valueOf(categoryId));
+                PositiveLongIdParser.parseNullable(categoryId));
         List<ItemSummaryResponse> items = result.getItems()
                 .stream()
                 .map(this::toSummaryResponse)
@@ -223,9 +222,8 @@ public class ItemController {
             CreateItemRequest request) {
         return new CreateItemCommand(
                 request.name(),
-                request.categoryId() == null
-                        ? null
-                        : Long.valueOf(request.categoryId()),
+                PositiveLongIdParser.parseNullable(
+                        request.categoryId()),
                 new BigDecimal(request.purchasePrice()),
                 new BigDecimal(request.expectedYears()),
                 request.residualValue() == null
@@ -243,9 +241,8 @@ public class ItemController {
         return new UpdateItemCommand(
                 request.version(),
                 request.name(),
-                request.categoryId() == null
-                        ? null
-                        : Long.valueOf(request.categoryId()),
+                PositiveLongIdParser.parseNullable(
+                        request.categoryId()),
                 new BigDecimal(request.purchasePrice()),
                 new BigDecimal(request.expectedYears()),
                 request.residualValue() == null

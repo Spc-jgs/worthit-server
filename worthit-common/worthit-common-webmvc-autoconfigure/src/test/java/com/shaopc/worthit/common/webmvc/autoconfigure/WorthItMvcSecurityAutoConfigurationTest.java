@@ -2,6 +2,7 @@ package com.shaopc.worthit.common.webmvc.autoconfigure;
 
 import cn.dev33.satoken.jwt.StpLogicJwtForSimple;
 import cn.dev33.satoken.stp.StpLogic;
+import cn.dev33.satoken.util.SaTokenConsts;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.security.sametoken.SaTokenSameTokenProvider;
@@ -62,15 +63,21 @@ class WorthItMvcSecurityAutoConfigurationTest {
                     context.getBean(
                             "publicAuthenticationFilterRegistration",
                             FilterRegistrationBean.class);
+            FilterRegistrationBean<?> traceRegistration = context.getBean(
+                    "trustedTraceIdFilterRegistration",
+                    FilterRegistrationBean.class);
             assertThat(sourceRegistration.getFilter())
                     .isSameAs(context.getBean(TrustedSourceFilter.class));
             assertThat(sourceRegistration.getOrder())
-                    .isEqualTo(Integer.MIN_VALUE + 10);
+                    .isEqualTo(
+                            SaTokenConsts.SA_TOKEN_CONTEXT_FILTER_ORDER + 10);
+            assertThat(traceRegistration.getOrder())
+                    .isGreaterThan(sourceRegistration.getOrder());
             assertThat(authenticationRegistration.getFilter())
                     .isSameAs(context.getBean(
                             PublicAuthenticationFilter.class));
             assertThat(authenticationRegistration.getOrder())
-                    .isEqualTo(Integer.MIN_VALUE + 30);
+                    .isGreaterThan(traceRegistration.getOrder());
 
             PublicRequestAuthorizationPolicy policy =
                     context.getBean(PublicRequestAuthorizationPolicy.class);

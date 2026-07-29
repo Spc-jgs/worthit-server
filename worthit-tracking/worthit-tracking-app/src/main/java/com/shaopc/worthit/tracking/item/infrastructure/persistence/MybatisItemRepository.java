@@ -25,7 +25,18 @@ public class MybatisItemRepository implements ItemRepository {
 
     @Override
     public Item create(Item item) {
+        return create(item, null);
+    }
+
+    @Override
+    public Item createFromWish(
+            Item item, long sourceWishId) {
+        return create(item, sourceWishId);
+    }
+
+    private Item create(Item item, Long sourceWishId) {
         ItemDO data = toData(item);
+        data.setSourceWishId(sourceWishId);
         itemMapper.insert(data);
         return toDomain(data);
     }
@@ -35,6 +46,15 @@ public class MybatisItemRepository implements ItemRepository {
             long itemId, long userId) {
         return Optional.ofNullable(
                         itemMapper.selectDetail(itemId, userId))
+                .map(this::toView);
+    }
+
+    @Override
+    public Optional<ItemWithCategory> findBySourceWishId(
+            long sourceWishId, long userId) {
+        return Optional.ofNullable(
+                        itemMapper.selectBySourceWishId(
+                                sourceWishId, userId))
                 .map(this::toView);
     }
 
