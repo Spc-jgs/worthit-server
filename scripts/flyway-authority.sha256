@@ -1,0 +1,4 @@
+# SHA-256 service runtime-path
+d9f1102b019700479105a43922215aaf480ae12d6b0cf0fd85f7c111f4dea595 auth worthit-auth/worthit-auth-app/src/main/resources/db/migration/V1__init_auth.sql
+f17833bd0b20b8266af5a074ac703f68c8cdca655e988ff9ea298f98af76b845 tracking worthit-tracking/worthit-tracking-app/src/main/resources/db/migration/V1__init_tracking.sql
+f90e532349dde300079a85b7477b1bd2f8c91266f137f67817136e885ab12282 reminder worthit-reminder/worthit-reminder-app/src/main/resources/db/migration/V1__init_reminder.sql

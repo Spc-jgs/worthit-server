@@ -122,15 +122,15 @@ Spring Boot 3.5 官方文档推荐构造器注入，因为它允许依赖字段�
 POM 或依赖发生变化时，至少执行：
 
 ```bash
-mvn validate
-mvn test
-mvn package
+./mvnw validate
+./mvnw test
+./mvnw package
 ```
 
 同时根据范围执行：
 
-- 相关模块及其上游：`mvn -pl <module> -am test`；
-- 依赖边界：`mvn dependency:tree` 或 ArchUnit；
+- 相关模块及其上游：`./mvnw -pl <module> -am test`；
+- 依赖边界：`./mvnw dependency:tree` 或 ArchUnit；
 - BOM/版本：检查 effective POM 和解析版本；
 - 打包插件：检查最终产物，而不只检查配置存在。
 

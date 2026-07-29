@@ -96,14 +96,14 @@ Web 运行栈依赖树还必须确认：
 完成实现前至少执行：
 
 ```bash
-mvn validate
-mvn test
-mvn package
+./mvnw validate
+./mvnw test
+./mvnw package
 ```
 
 根据改动范围追加：
 
-- `mvn -pl <module> -am test`；
+- `./mvnw -pl <module> -am test`；
 - ArchitectureTest；
 - Client/API 契约测试；
 - Flyway/MySQL 集成测试；
