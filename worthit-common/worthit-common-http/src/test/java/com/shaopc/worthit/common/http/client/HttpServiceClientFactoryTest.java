@@ -62,19 +62,23 @@ class HttpServiceClientFactoryTest {
         });
         server.start();
 
+        client = createClient(Duration.ofSeconds(2));
+    }
+
+    private TestClient createClient(Duration readTimeout) {
         URI baseUrl = URI.create(
                 "http://127.0.0.1:" + server.getAddress().getPort());
         InternalRequestContext requestContext = new InternalRequestContext(
                 "worthit-tracking",
                 () -> "same-token-test",
                 () -> "trace-test");
-        client = new HttpServiceClientFactory(objectMapper).create(
+        return new HttpServiceClientFactory(objectMapper).create(
                 TestClient.class,
                 "worthit-reminder",
                 baseUrl,
                 RestClient.builder(),
                 new HttpClientTimeouts(
-                        Duration.ofSeconds(1), Duration.ofMillis(100)),
+                        Duration.ofSeconds(1), readTimeout),
                 requestContext);
     }
 
@@ -111,7 +115,9 @@ class HttpServiceClientFactoryTest {
 
     @Test
     void enforcesReadTimeoutAndRetainsTransportCause() {
-        assertThatThrownBy(client::slow)
+        TestClient shortTimeoutClient = createClient(Duration.ofMillis(100));
+
+        assertThatThrownBy(shortTimeoutClient::slow)
                 .isInstanceOf(ResourceAccessException.class)
                 .hasCauseInstanceOf(HttpTimeoutException.class);
     }
