@@ -7,11 +7,27 @@
 - 未登录错误链路在可信 Header GlobalFilter 之前执行，TraceId 缺失或可能回显伪造值。
 - 用户明确要求的账号密码登录没有加入 Gateway 匿名白名单。
 
-本文登记其余问题，不代表已经实现或验证。
+本文最初登记其余问题；已完成项按后续实现日期补充状态，未标记完成的条目仍是待办。
+
+## 2026-07-29 本轮完成事实
+
+- Wish M1.2 已完成创建、分页与详情、更新、购买转 Item、放弃、重新考虑、删除及
+  60 秒恢复闭环；购买转 Item 以 `source_wish_id` 唯一键和事务内幂等保证并发唯一。
+- Wish 截止观察提醒已按 Asia/Shanghai 的截止日 00:00 写入 Outbox；恢复删除记录
+  不自动恢复旧 Reminder。
+- Servlet 安全过滤链已调整到 Sa-Token 请求上下文过滤器之后，并保持可信来源、
+  TraceId、用户登录校验的固定顺序，修复“登录成功后受保护 API 仍返回 401”。
+- 自动化已覆盖 Wish 单元、Controller、MySQL 持久化及并发购买，真实本地链路已通过
+  Gateway 登录、Wish 创建/详情/购买转 Item/删除/恢复。
 
 ## 业务闭环待办
 
 ### TODO-BIZ-001：补齐 Item 更新、删除与短时恢复
+
+**状态（2026-07-28）**
+
+已完成并合入 `main`，实现提交为 `853e45e`。当前代码及集成测试已覆盖更新、删除、
+窗口内恢复、错误 Token、版本冲突、重复恢复和跨用户访问。
 
 **现状**
 
@@ -37,6 +53,12 @@
 - 通过接口终稿及 TC-ITEM-007、008、011、012、013 对应验收。
 
 ### TODO-BIZ-002：实现 Tracking Outbox 到 Reminder 的可靠投递
+
+**状态（2026-07-28）**
+
+已完成并合入 `main`。Reminder reconcile、Tracking Relay 及 Reminder 公网闭环分别由
+`5d04a11`、`95ade59`、`ec9a367` 实现；当前集成测试覆盖重复/乱序、重试、租约回收、
+DEAD、并发 reconcile 和 payload 冲突。
 
 **现状**
 
@@ -88,6 +110,11 @@ DEAD 状态推进；Reminder App 也尚未实现 reconcile 用例。
 
 ### TODO-P1-002：超长 categoryId 通过校验后返回 500
 
+**状态（2026-07-29）**
+
+已由 `819bce0` 修复。Item、Subscription、Wish 的字符串分类 ID 在 Web 边界统一解析
+为正 `long`；越界值返回 HTTP 400 和 `VAL_INVALID_ARGUMENT`，跨端仍保持字符串 ID。
+
 **现状**
 
 请求正则允许 19 位正整数，但部分合法 19 位文本大于 `Long.MAX_VALUE`；
@@ -136,4 +163,3 @@ MySQL 8.1，MySQL 8.4 支持未经测试。
 
 后续经用户授权修改上级 `worthit/docs` 时，同步产品适用端、匿名接口契约、错误语义、
 密码凭据表和 Flyway 版本清单；在此之前不得反向删除已确认的密码登录功能。
-
