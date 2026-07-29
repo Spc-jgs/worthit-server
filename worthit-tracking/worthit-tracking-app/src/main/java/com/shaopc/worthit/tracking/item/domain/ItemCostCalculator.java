@@ -37,19 +37,9 @@ public final class ItemCostCalculator {
             BigDecimal residualValue,
             LocalDate purchaseDate,
             LocalDate today) {
-        int expectedUseDays = expectedYears
-                .multiply(DAYS_PER_YEAR)
-                .setScale(0, RoundingMode.CEILING)
-                .intValueExact();
-        BigDecimal countedResidual = residualValue == null
-                ? BigDecimal.ZERO
-                : residualValue;
-        BigDecimal exactPlan = purchasePrice
-                .subtract(countedResidual)
-                .max(BigDecimal.ZERO)
-                .divide(
-                        BigDecimal.valueOf(expectedUseDays),
-                        CALCULATION_CONTEXT);
+        int expectedUseDays = expectedUseDays(expectedYears);
+        BigDecimal exactPlan = calculateExactPlanDailyCost(
+                purchasePrice, expectedYears, residualValue);
         BigDecimal roundedPlan = rounded(exactPlan);
 
         Integer holdingDays = null;
@@ -79,6 +69,38 @@ public final class ItemCostCalculator {
                 exactHolding,
                 roundedHolding,
                 holdingDisplay);
+    }
+
+    /**
+     * 计算未舍入的计划日均，供汇总场景先累加精确值。
+     *
+     * @param purchasePrice 购买价格
+     * @param expectedYears 预计使用年限
+     * @param residualValue 预计残值；空时按零参与计算
+     * @return 未舍入的计划日均
+     */
+    public static BigDecimal calculateExactPlanDailyCost(
+            BigDecimal purchasePrice,
+            BigDecimal expectedYears,
+            BigDecimal residualValue) {
+        BigDecimal countedResidual = residualValue == null
+                ? BigDecimal.ZERO
+                : residualValue;
+        return purchasePrice
+                .subtract(countedResidual)
+                .max(BigDecimal.ZERO)
+                .divide(
+                        BigDecimal.valueOf(
+                                expectedUseDays(expectedYears)),
+                        CALCULATION_CONTEXT);
+    }
+
+    private static int expectedUseDays(
+            BigDecimal expectedYears) {
+        return expectedYears
+                .multiply(DAYS_PER_YEAR)
+                .setScale(0, RoundingMode.CEILING)
+                .intValueExact();
     }
 
     private static BigDecimal rounded(BigDecimal value) {
