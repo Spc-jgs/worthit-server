@@ -5,6 +5,7 @@ import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.common.web.response.ApiResponse;
+import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
 import com.shaopc.worthit.tracking.subscription.application.CreateSubscriptionCommand;
 import com.shaopc.worthit.tracking.subscription.application.DeleteSubscriptionResult;
 import com.shaopc.worthit.tracking.subscription.application.ResumeSubscriptionCommand;
@@ -122,9 +123,8 @@ public class SubscriptionController {
                         page,
                         size,
                         keyword,
-                        categoryId == null
-                                ? null
-                                : Long.valueOf(categoryId));
+                        PositiveLongIdParser.parseNullable(
+                                categoryId));
         List<SubscriptionSummaryResponse> items = result
                 .getItems()
                 .stream()
@@ -283,7 +283,8 @@ public class SubscriptionController {
             CreateSubscriptionRequest request) {
         return new CreateSubscriptionCommand(
                 request.name(),
-                parseId(request.categoryId()),
+                PositiveLongIdParser.parseNullable(
+                        request.categoryId()),
                 new BigDecimal(request.amount()),
                 request.currency(),
                 request.billingCycleType(),
@@ -300,7 +301,8 @@ public class SubscriptionController {
         return new UpdateSubscriptionCommand(
                 request.version(),
                 request.name(),
-                parseId(request.categoryId()),
+                PositiveLongIdParser.parseNullable(
+                        request.categoryId()),
                 new BigDecimal(request.amount()),
                 request.currency(),
                 request.billingCycleType(),
@@ -310,10 +312,6 @@ public class SubscriptionController {
                 request.autoRenew(),
                 request.renewalReminderEnabled(),
                 request.remark());
-    }
-
-    private static Long parseId(String value) {
-        return value == null ? null : Long.valueOf(value);
     }
 
     private static BigDecimal parseDecimal(String value) {

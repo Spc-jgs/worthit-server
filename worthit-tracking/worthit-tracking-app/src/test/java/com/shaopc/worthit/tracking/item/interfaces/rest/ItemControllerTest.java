@@ -125,6 +125,35 @@ class ItemControllerTest {
     }
 
     @Test
+    void rejectsCategoryIdBeyondPositiveLongRange()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/items")
+                        .param("categoryId", "9223372036854775808")
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VAL_INVALID_ARGUMENT"));
+
+        mockMvc.perform(post("/api/v1/items")
+                        .header("Idempotency-Key", IDEMPOTENCY_KEY)
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"MacBook",
+                                  "categoryId":"9223372036854775808",
+                                  "purchasePrice":"1000.00",
+                                  "expectedYears":"1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VAL_INVALID_ARGUMENT"));
+    }
+
+    @Test
     void returnsItemDetail() throws Exception {
         when(itemService.detail(1938L)).thenReturn(itemDetail());
 
