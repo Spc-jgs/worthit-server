@@ -23,6 +23,7 @@ import com.shaopc.worthit.tracking.item.domain.ItemCostCalculator;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreClaimCoordinator;
 import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import com.shaopc.worthit.tracking.wish.domain.Wish;
@@ -70,6 +71,7 @@ public class WishService {
     private final CurrentUserProvider currentUserProvider;
     private final Clock trackingClock;
     private final RestoreWindowPolicy restoreWindowPolicy;
+    private final RestoreClaimCoordinator restoreClaimCoordinator;
 
     /** 幂等新建想买。 */
     @Transactional
@@ -349,29 +351,33 @@ public class WishService {
             long deletedVersion,
             String restoreToken) {
         long userId = currentUserId();
+        WishDeletionState deletion =
+                wishRepository.findDeletionState(
+                                wishId, userId)
+                        .orElseThrow(() -> new BusinessException(
+                                CommonWebErrorCode.RES_NOT_FOUND));
         RestoreTokenClaim<WishDetail> claim =
-                restoreTokenStore.claim(
-                        userId, WISH_RESTORE, wishId,
-                        deletedVersion, restoreToken, now(),
-                        WishDetail.class);
+                restoreClaimCoordinator
+                        .claimWithCategoryReservation(
+                                userId,
+                                deletion.wish().categoryId(),
+                                WISH_RESTORE,
+                                wishId,
+                                deletedVersion,
+                                restoreToken,
+                                now(),
+                                WishDetail.class);
         if (claim.status() == RestoreTokenClaim.Status.REPLAY) {
             return claim.replay();
         }
         if (claim.status() != RestoreTokenClaim.Status.AVAILABLE) {
             throw stateConflict();
         }
-        WishDeletionState deletion =
-                wishRepository.findDeletionState(
-                                wishId, userId)
-                        .orElseThrow(() -> new BusinessException(
-                                CommonWebErrorCode.RES_NOT_FOUND));
         if (!deletion.deleted()
                 || deletion.wish().version()
                 != deletedVersion) {
             throw stateConflict();
         }
-        categoryReferenceResolver.resolve(
-                deletion.wish().categoryId(), userId);
         if (!wishRepository.restore(
                         wishId, userId,
                         deletedVersion, now())) {

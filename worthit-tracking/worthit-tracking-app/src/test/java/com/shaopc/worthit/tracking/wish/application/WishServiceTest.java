@@ -8,6 +8,7 @@ import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreClaimCoordinator;
 import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import com.shaopc.worthit.tracking.wish.domain.WishRepository;
@@ -65,7 +66,8 @@ class WishServiceTest {
                 outboxWriter,
                 currentUserProvider,
                 clock,
-                new RestoreWindowPolicy());
+                new RestoreWindowPolicy(),
+                mock(RestoreClaimCoordinator.class));
     }
 
     @Test

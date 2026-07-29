@@ -24,6 +24,7 @@ import com.shaopc.worthit.tracking.item.domain.ItemErrorCode;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreClaimCoordinator;
 import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +59,7 @@ public class ItemService {
     private final CurrentUserProvider currentUserProvider;
     private final Clock trackingClock;
     private final RestoreWindowPolicy restoreWindowPolicy;
+    private final RestoreClaimCoordinator restoreClaimCoordinator;
 
     /**
      * 幂等新建物品。
@@ -323,14 +325,16 @@ public class ItemService {
                                 CommonWebErrorCode.RES_NOT_FOUND));
         LocalDateTime now = LocalDateTime.now(trackingClock);
         RestoreTokenClaim<ItemDetail> claim =
-                restoreTokenStore.claim(
-                        userId,
-                        ITEM_RESTORE,
-                        itemId,
-                        deletedVersion,
-                        restoreToken,
-                        now,
-                        ItemDetail.class);
+                restoreClaimCoordinator
+                        .claimWithCategoryReservation(
+                                userId,
+                                state.item().categoryId(),
+                                ITEM_RESTORE,
+                                itemId,
+                                deletedVersion,
+                                restoreToken,
+                                now,
+                                ItemDetail.class);
         if (claim.status()
                 == RestoreTokenClaim.Status.REPLAY) {
             return claim.replay();
@@ -341,8 +345,6 @@ public class ItemService {
                 || state.item().version() != deletedVersion) {
             throw stateConflict();
         }
-        categoryReferenceResolver.resolve(
-                state.item().categoryId(), userId);
         if (!itemRepository.restore(
                 itemId, userId, deletedVersion, now)) {
             throw stateConflict();

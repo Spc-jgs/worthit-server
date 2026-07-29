@@ -17,6 +17,7 @@ import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreClaimCoordinator;
 import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import com.shaopc.worthit.tracking.subscription.domain.AutoRenew;
@@ -65,6 +66,7 @@ public class SubscriptionService {
     private final CurrentUserProvider currentUserProvider;
     private final Clock trackingClock;
     private final RestoreWindowPolicy restoreWindowPolicy;
+    private final RestoreClaimCoordinator restoreClaimCoordinator;
 
     /**
      * 幂等创建订阅。
@@ -429,14 +431,16 @@ public class SubscriptionService {
                                                 .RES_NOT_FOUND));
         LocalDateTime now = now();
         RestoreTokenClaim<SubscriptionDetail> claim =
-                restoreTokenStore.claim(
-                        userId,
-                        SUB_RESTORE,
-                        subscriptionId,
-                        deletedVersion,
-                        restoreToken,
-                        now,
-                        SubscriptionDetail.class);
+                restoreClaimCoordinator
+                        .claimWithCategoryReservation(
+                                userId,
+                                state.subscription().categoryId(),
+                                SUB_RESTORE,
+                                subscriptionId,
+                                deletedVersion,
+                                restoreToken,
+                                now,
+                                SubscriptionDetail.class);
         if (claim.status()
                 == RestoreTokenClaim.Status.REPLAY) {
             return claim.replay();
@@ -448,8 +452,6 @@ public class SubscriptionService {
                 != deletedVersion) {
             throw stateConflict();
         }
-        categoryReferenceResolver.resolve(
-                state.subscription().categoryId(), userId);
         if (!repository.restore(
                 subscriptionId,
                 userId,

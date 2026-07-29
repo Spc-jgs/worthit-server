@@ -6,7 +6,10 @@ import com.shaopc.worthit.tracking.WorthItTrackingApplication;
 import com.shaopc.worthit.tracking.category.application.CategoryReferenceResolver;
 import com.shaopc.worthit.tracking.category.application.CategoryService;
 import com.shaopc.worthit.tracking.category.domain.Category;
+import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
+import com.shaopc.worthit.tracking.subscription.application.SubscriptionService;
+import com.shaopc.worthit.tracking.wish.application.WishService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,12 +30,21 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.HexFormat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,6 +64,17 @@ class CategoryReferenceConcurrencyIntegrationTest {
 
     private static final long USER_ID = 1001L;
     private static final long BUSINESS_ID = 9001L;
+    private static final long RESTORE_GRANT_ID = 8001L;
+    private static final ZoneId BUSINESS_ZONE =
+            ZoneId.of("Asia/Shanghai");
+    private static final LocalDateTime TEST_BUSINESS_TIME =
+            LocalDateTime.of(2026, 7, 29, 17, 0);
+    private static final Instant BEFORE_RESTORE_DEADLINE =
+            Instant.parse("2026-07-29T09:00:59Z");
+    private static final Instant AFTER_RESTORE_DEADLINE =
+            Instant.parse("2026-07-29T09:01:01Z");
+    private static final AtomicReference<Instant> CURRENT_INSTANT =
+            new AtomicReference<>(BEFORE_RESTORE_DEADLINE);
 
     @Container
     static final MySQLContainer<?> MYSQL =
@@ -62,6 +85,15 @@ class CategoryReferenceConcurrencyIntegrationTest {
 
     @Autowired
     private CategoryReferenceResolver categoryReferenceResolver;
+
+    @Autowired
+    private ItemService itemService;
+
+    @Autowired
+    private SubscriptionService subscriptionService;
+
+    @Autowired
+    private WishService wishService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -86,6 +118,8 @@ class CategoryReferenceConcurrencyIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        CURRENT_INSTANT.set(BEFORE_RESTORE_DEADLINE);
+        jdbcTemplate.update("DELETE FROM trk_idempotency_record");
         jdbcTemplate.update("DELETE FROM trk_item");
         jdbcTemplate.update("DELETE FROM trk_subscription");
         jdbcTemplate.update("DELETE FROM trk_wish");
@@ -152,7 +186,7 @@ class CategoryReferenceConcurrencyIntegrationTest {
         });
         assertThat(writeStarted.await(
                 5, TimeUnit.SECONDS)).isTrue();
-        awaitCategoryLockWaiters(2);
+        awaitLockWaiters("trk_category", 2);
 
         releaseLock.countDown();
         lockHolder.get(5, TimeUnit.SECONDS);
@@ -177,7 +211,83 @@ class CategoryReferenceConcurrencyIntegrationTest {
                 referenceWrite.table())).isZero();
     }
 
-    private void awaitCategoryLockWaiters(int expected) {
+    @ParameterizedTest
+    @EnumSource(AcceptedRestore.class)
+    void acceptedRestoreReservesCategoryBeforeTokenClaim(
+            AcceptedRestore acceptedRestore) throws Exception {
+        Category category = categoryService.create("待恢复分类");
+        LocalDateTime deletedAt = TEST_BUSINESS_TIME;
+        String restoreToken =
+                "restore-" + acceptedRestore.name();
+        acceptedRestore.prepare(
+                jdbcTemplate, category.id(), deletedAt);
+        insertRestoreGrant(
+                acceptedRestore.operationCode(),
+                restoreToken,
+                deletedAt.plusSeconds(60));
+
+        CountDownLatch tokenLocked = new CountDownLatch(1);
+        CountDownLatch releaseToken = new CountDownLatch(1);
+        Future<?> tokenLockHolder = executor.submit(() ->
+                inTransaction(() -> {
+                    jdbcTemplate.queryForObject(
+                            """
+                            SELECT id
+                            FROM trk_idempotency_record
+                            WHERE id = ?
+                            FOR UPDATE
+                            """,
+                            Long.class,
+                            RESTORE_GRANT_ID);
+                    tokenLocked.countDown();
+                    await(releaseToken);
+                }));
+        assertThat(tokenLocked.await(
+                5, TimeUnit.SECONDS)).isTrue();
+
+        Future<OperationResult> restore = executor.submit(
+                () -> capture(() -> acceptedRestore.restore(
+                        itemService,
+                        subscriptionService,
+                        wishService,
+                        restoreToken)));
+        awaitLockWaiters("trk_idempotency_record", 1);
+
+        CURRENT_INSTANT.set(AFTER_RESTORE_DEADLINE);
+        Future<OperationResult> delete = executor.submit(
+                () -> capture(
+                        () -> categoryService.delete(category.id())));
+        boolean deleteCompletedBeforeTokenRelease;
+        try {
+            delete.get(1, TimeUnit.SECONDS);
+            deleteCompletedBeforeTokenRelease = true;
+        } catch (TimeoutException expected) {
+            deleteCompletedBeforeTokenRelease = false;
+        } finally {
+            releaseToken.countDown();
+        }
+
+        tokenLockHolder.get(5, TimeUnit.SECONDS);
+        OperationResult restoreResult =
+                restore.get(5, TimeUnit.SECONDS);
+        OperationResult deleteResult =
+                delete.get(5, TimeUnit.SECONDS);
+
+        assertThat(deleteCompletedBeforeTokenRelease)
+                .as("分类删除不得越过已开始校验的恢复")
+                .isFalse();
+        assertThat(restoreResult.succeeded()).isTrue();
+        assertThat(deleteResult.failure())
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("BIZ_CATEGORY_IN_USE"));
+        assertThat(activeOrphanCount(
+                acceptedRestore.table())).isZero();
+    }
+
+    private void awaitLockWaiters(
+            String table, int expected) {
         long deadline = System.nanoTime()
                 + TimeUnit.SECONDS.toNanos(5);
         int waiters;
@@ -191,9 +301,10 @@ class CategoryReferenceConcurrencyIntegrationTest {
                      AND requested.engine_lock_id =
                          w.requesting_engine_lock_id
                     WHERE requested.object_schema = DATABASE()
-                      AND requested.object_name = 'trk_category'
+                      AND requested.object_name = ?
                     """,
-                    Integer.class);
+                    Integer.class,
+                    table);
             if (waiters >= expected) {
                 return;
             }
@@ -208,6 +319,46 @@ class CategoryReferenceConcurrencyIntegrationTest {
         throw new AssertionError(
                 "分类行锁等待者不足，expected="
                         + expected + ", actual=" + waiters);
+    }
+
+    private void insertRestoreGrant(
+            String operationCode,
+            String restoreToken,
+            LocalDateTime deadline) {
+        LocalDateTime createdAt = deadline.minusSeconds(60);
+        jdbcTemplate.update(
+                """
+                INSERT INTO trk_idempotency_record (
+                    id, user_id, operation_code,
+                    idempotency_key, request_hash,
+                    status, processing_expire_at, expires_at,
+                    create_time, update_time
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                RESTORE_GRANT_ID,
+                USER_ID,
+                operationCode,
+                restoreToken,
+                restoreHash(BUSINESS_ID, 1L),
+                "PROCESSING",
+                deadline,
+                deadline,
+                createdAt,
+                createdAt);
+    }
+
+    private static String restoreHash(
+            long resourceId, long deletedVersion) {
+        try {
+            MessageDigest digest =
+                    MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(
+                    (resourceId + ":" + deletedVersion)
+                            .getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(
+                    "当前JDK不支持SHA-256", exception);
+        }
     }
 
     private int activeOrphanCount(String table) {
@@ -297,7 +448,7 @@ class CategoryReferenceConcurrencyIntegrationTest {
                         "UPDATE " + table
                                 + " SET del_flag = 1,"
                                 + " delete_time = ?",
-                        LocalDateTime.now().minusSeconds(30));
+                        TEST_BUSINESS_TIME.minusSeconds(30));
             }
         }
 
@@ -321,7 +472,7 @@ class CategoryReferenceConcurrencyIntegrationTest {
 
         private void insert(
                 JdbcTemplate jdbc, long categoryId) {
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime now = TEST_BUSINESS_TIME;
             switch (table) {
                 case "trk_item" -> jdbc.update(
                         """
@@ -382,6 +533,86 @@ class CategoryReferenceConcurrencyIntegrationTest {
         RESTORE
     }
 
+    private enum AcceptedRestore {
+        ITEM("trk_item", "ITEM_RESTORE") {
+            @Override
+            void restore(
+                    ItemService itemService,
+                    SubscriptionService subscriptionService,
+                    WishService wishService,
+                    String restoreToken) {
+                itemService.restore(
+                        BUSINESS_ID, 1L, restoreToken);
+            }
+        },
+        SUBSCRIPTION(
+                "trk_subscription", "SUB_RESTORE") {
+            @Override
+            void restore(
+                    ItemService itemService,
+                    SubscriptionService subscriptionService,
+                    WishService wishService,
+                    String restoreToken) {
+                subscriptionService.restore(
+                        BUSINESS_ID, 1L, restoreToken);
+            }
+        },
+        WISH("trk_wish", "WISH_RESTORE") {
+            @Override
+            void restore(
+                    ItemService itemService,
+                    SubscriptionService subscriptionService,
+                    WishService wishService,
+                    String restoreToken) {
+                wishService.restore(
+                        BUSINESS_ID, 1L, restoreToken);
+            }
+        };
+
+        private final String table;
+        private final String operationCode;
+
+        AcceptedRestore(
+                String table, String operationCode) {
+            this.table = table;
+            this.operationCode = operationCode;
+        }
+
+        String table() {
+            return table;
+        }
+
+        String operationCode() {
+            return operationCode;
+        }
+
+        void prepare(
+                JdbcTemplate jdbc,
+                long categoryId,
+                LocalDateTime deletedAt) {
+            ReferenceWrite referenceWrite = switch (this) {
+                case ITEM -> ReferenceWrite.ITEM_RESTORE;
+                case SUBSCRIPTION ->
+                        ReferenceWrite.SUBSCRIPTION_RESTORE;
+                case WISH -> ReferenceWrite.WISH_RESTORE;
+            };
+            referenceWrite.prepare(
+                    jdbc, categoryId, categoryId);
+            jdbc.update(
+                    "UPDATE " + table
+                            + " SET delete_time = ?"
+                            + " WHERE id = ?",
+                    deletedAt,
+                    BUSINESS_ID);
+        }
+
+        abstract void restore(
+                ItemService itemService,
+                SubscriptionService subscriptionService,
+                WishService wishService,
+                String restoreToken);
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class TestUserConfiguration {
 
@@ -389,6 +620,36 @@ class CategoryReferenceConcurrencyIntegrationTest {
         @Primary
         CurrentUserProvider fixedCurrentUserProvider() {
             return () -> new UserContext(USER_ID);
+        }
+
+        @Bean
+        @Primary
+        Clock mutableTrackingClock() {
+            return new MutableTrackingClock(BUSINESS_ZONE);
+        }
+    }
+
+    private static final class MutableTrackingClock extends Clock {
+
+        private final ZoneId zone;
+
+        private MutableTrackingClock(ZoneId zone) {
+            this.zone = zone;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId targetZone) {
+            return new MutableTrackingClock(targetZone);
+        }
+
+        @Override
+        public Instant instant() {
+            return CURRENT_INSTANT.get();
         }
     }
 }
