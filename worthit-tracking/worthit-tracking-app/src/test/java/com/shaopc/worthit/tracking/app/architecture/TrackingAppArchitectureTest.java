@@ -84,6 +84,31 @@ class TrackingAppArchitectureTest {
                     .resideInAPackage(
                             "..tracking.wish.infrastructure..");
 
+    private static final ArchRule
+            DASHBOARD_DOES_NOT_REUSE_DOMAIN_PERSISTENCE =
+            noClasses()
+                    .that()
+                    .resideInAPackage(
+                            "..tracking.dashboard..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAnyPackage(
+                            "..tracking.item.infrastructure..",
+                            "..tracking.subscription.infrastructure..",
+                            "..tracking.wish.infrastructure..");
+
+    private static final ArchRule
+            DASHBOARD_DOES_NOT_DEPEND_ON_REMINDER =
+            noClasses()
+                    .that()
+                    .resideInAPackage(
+                            "..tracking.dashboard..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAnyPackage(
+                            "..worthit.reminder..",
+                            "..tracking.infrastructure.client..");
+
     @Test
     void importsProductionTrackingClassesIncludingInfrastructure() {
         JavaClasses classes = importProductionClasses();
@@ -130,6 +155,16 @@ class TrackingAppArchitectureTest {
 
         WISH_DOMAIN_ISOLATION.check(classes);
         WISH_PERSISTENCE_DOES_NOT_LEAK.check(classes);
+    }
+
+    @Test
+    void dashboardKeepsReadModelAndReminderBoundaries() {
+        JavaClasses classes = importProductionClasses();
+
+        DASHBOARD_DOES_NOT_REUSE_DOMAIN_PERSISTENCE
+                .check(classes);
+        DASHBOARD_DOES_NOT_DEPEND_ON_REMINDER
+                .check(classes);
     }
 
     private static JavaClasses importProductionClasses() {
