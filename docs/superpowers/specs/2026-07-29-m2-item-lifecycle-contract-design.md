@@ -219,7 +219,8 @@ Gateway 必须新增 `/api/v1/lifecycle/** → worthit-tracking` 公网路由，
   `operationType=DISPOSE_ITEM`。
 - 已到达的 PENDING 进入 `PROCESSED`，尚未到达的 PENDING 进入 `CANCELED`；
   不创建新的 PENDING。
-- Outbox 失败不回滚已经提交的处置事实；Relay 按现行重试、DEAD 和人工重放机制
+- 本地 Outbox 写入失败时 Item、Disposal、Outbox 整体回滚；只有事务提交后的
+  Relay 投递失败才不回滚已提交的处置事实，并按现行重试、DEAD 和人工重放机制
   最终收敛。
 - 客户端不能传 `operationType`、`businessStatusCode`、`userId` 或 Reminder
   归档原因；这些值全部由服务端根据可信身份和用例生成。
