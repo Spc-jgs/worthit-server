@@ -33,6 +33,9 @@ class ReminderAppArchitectureTest {
         WorthItArchitectureRules
                 .APPLICATION_SERVICE_IMPLEMENTATIONS_MUST_MATCH_INTERFACES
                 .check(classes);
+        WorthItArchitectureRules
+                .INTERFACE_ADAPTERS_MUST_NOT_DEPEND_ON_SERVICE_IMPLEMENTATIONS
+                .check(classes);
     }
 
     @Test

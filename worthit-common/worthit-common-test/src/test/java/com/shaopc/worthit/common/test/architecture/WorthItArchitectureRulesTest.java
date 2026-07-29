@@ -6,15 +6,20 @@ import com.shaopc.worthit.common.web.fixture.CommonWebDependsOnWebFluxFixture;
 import com.shaopc.worthit.common.web.fixture.ValidCommonWebRuntimeNeutralFixture;
 import com.shaopc.worthit.common.webmvc.fixture.ValidWebMvcServletFixture;
 import com.shaopc.worthit.common.webmvc.fixture.WebMvcDependsOnWebFluxFixture;
+import com.shaopc.worthit.gateway.fixture.GatewayDependsOnRestClientFixture;
+import com.shaopc.worthit.gateway.fixture.GatewayDependsOnServletFixture;
+import com.shaopc.worthit.gateway.fixture.ValidGatewayFixture;
 import com.shaopc.worthit.reminder.app.fixture.ReminderAppFixture;
 import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnAppFixture;
 import com.shaopc.worthit.reminder.client.fixture.ClientDependsOnBootFixture;
 import com.shaopc.worthit.reminder.client.fixture.ValidClientFixture;
-import com.shaopc.worthit.gateway.fixture.GatewayDependsOnRestClientFixture;
-import com.shaopc.worthit.gateway.fixture.GatewayDependsOnServletFixture;
-import com.shaopc.worthit.gateway.fixture.ValidGatewayFixture;
+import com.shaopc.worthit.tracking.application.fixture.InvalidConcreteService;
+import com.shaopc.worthit.tracking.application.fixture.MismatchedServiceImpl;
+import com.shaopc.worthit.tracking.application.fixture.ValidExampleService;
+import com.shaopc.worthit.tracking.application.fixture.ValidExampleServiceImpl;
 import com.shaopc.worthit.tracking.fixture.ServletAppDependsOnWebFluxFixture;
 import com.shaopc.worthit.tracking.fixture.TrackingFixture;
+import com.shaopc.worthit.tracking.interfaces.fixture.InvalidServiceImplDependencyFixture;
 import com.shaopc.worthit.tracking.item.domain.fixture.DomainDependsOnInfrastructureFixture;
 import com.shaopc.worthit.tracking.item.domain.fixture.ValidDomainFixture;
 import com.shaopc.worthit.tracking.item.infrastructure.fixture.TrackingInfrastructureFixture;
@@ -28,6 +33,60 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class WorthItArchitectureRulesTest {
 
     private final ClassFileImporter importer = new ClassFileImporter();
+
+    @Test
+    void applicationServiceRulesAcceptInterfaceAndMatchingImplementation() {
+        JavaClasses classes = importer.importClasses(
+                ValidExampleService.class,
+                ValidExampleServiceImpl.class);
+
+        assertThatCode(() -> {
+            WorthItArchitectureRules
+                    .APPLICATION_SERVICES_MUST_BE_INTERFACES
+                    .check(classes);
+            WorthItArchitectureRules
+                    .APPLICATION_SERVICE_IMPLEMENTATIONS_MUST_MATCH_INTERFACES
+                    .check(classes);
+        }).doesNotThrowAnyException();
+    }
+
+    @Test
+    void applicationServiceRuleRejectsConcreteServiceContract() {
+        JavaClasses classes = importer.importClasses(
+                InvalidConcreteService.class);
+
+        assertThatThrownBy(() ->
+                WorthItArchitectureRules
+                        .APPLICATION_SERVICES_MUST_BE_INTERFACES
+                        .check(classes))
+                .isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    void applicationServiceRuleRejectsMismatchedImplementation() {
+        JavaClasses classes = importer.importClasses(
+                MismatchedServiceImpl.class);
+
+        assertThatThrownBy(() ->
+                WorthItArchitectureRules
+                        .APPLICATION_SERVICE_IMPLEMENTATIONS_MUST_MATCH_INTERFACES
+                        .check(classes))
+                .isInstanceOf(AssertionError.class);
+    }
+
+    @Test
+    void interfaceAdapterRuleRejectsServiceImplementationDependency() {
+        JavaClasses classes = importer.importClasses(
+                InvalidServiceImplDependencyFixture.class,
+                ValidExampleServiceImpl.class,
+                ValidExampleService.class);
+
+        assertThatThrownBy(() ->
+                WorthItArchitectureRules
+                        .INTERFACE_ADAPTERS_MUST_NOT_DEPEND_ON_SERVICE_IMPLEMENTATIONS
+                        .check(classes))
+                .isInstanceOf(AssertionError.class);
+    }
 
     @Test
     void commonRuleAcceptsIndependentCommonCode() {

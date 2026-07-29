@@ -75,6 +75,19 @@ public final class WorthItArchitectureRules {
                     .as("Application ServiceImpl 必须实现同包同名 Service 接口");
 
     /**
+     * 接口适配层只能依赖应用服务接口，不能绑定实现类。
+     */
+    public static final ArchRule
+            INTERFACE_ADAPTERS_MUST_NOT_DEPEND_ON_SERVICE_IMPLEMENTATIONS =
+            noClasses()
+                    .that()
+                    .resideInAPackage("..interfaces..")
+                    .should()
+                    .dependOnClassesThat()
+                    .haveSimpleNameEndingWith("ServiceImpl")
+                    .as("接口适配层不得依赖 Application ServiceImpl");
+
+    /**
      * Common 模块不得依赖任何业务服务或网关包。
      */
     public static final ArchRule COMMON_MUST_NOT_DEPEND_ON_BUSINESS =
