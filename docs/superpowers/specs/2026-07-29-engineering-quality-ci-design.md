@@ -43,6 +43,8 @@
 - Maven Wrapper 固定 Maven 3.9.16，并校验发行包 SHA-256；
 - GitHub 官方 Action 固定到已核实 release 对应的完整提交 SHA；
 - 一个 `quality` Job 完成全 Reactor `clean verify` 和 Flyway 源一致性校验；
+- 本地存在上级权威文档时逐字节校验，CI 无法检出上级文档时依据已评审入库的
+  SHA-256 锁文件校验运行时迁移，避免静默跳过；
 - Testcontainers 直接使用 GitHub Ubuntu VM 的 Docker，不额外维护共享数据库；
 - 失败时上传 Surefire/Failsafe 报告，成功时不保存冗余制品；
 - 合并后将 `CI / quality` 设为 `main` 必需状态检查。
@@ -68,6 +70,7 @@
 - Job 最长 20 分钟；
 - 不使用 `pull_request_target`，不读取仓库 Secret，不执行部署；
 - `./mvnw --batch-mode --no-transfer-progress clean verify`；
+- `bash scripts/tests/verify-flyway-source-parity-test.sh`；
 - `bash scripts/verify-flyway-source-parity.sh`；
 - 仅失败时上传测试报告，保留 7 天。
 
@@ -130,6 +133,7 @@ Workflow 在 PR 上成功后合并。合并完成并确认 `main` push 运行成
 - Wrapper 实际使用 Maven 3.9.16；
 - 本地 `./mvnw clean verify` 全绿；
 - Flyway 源一致性脚本通过；
+- Flyway 校验器单元测试覆盖无上级文档和运行时迁移被篡改两种路径；
 - Workflow YAML 可解析；
 - PR 的 `CI / quality` 成功；
 - 合并后的 `main` push CI 成功；

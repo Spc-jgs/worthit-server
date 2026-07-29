@@ -38,6 +38,9 @@ jobs:
       - name: Verify Maven runtime
         run: ./mvnw --version
 
+      - name: Test Flyway parity verifier
+        run: bash scripts/tests/verify-flyway-source-parity-test.sh
+
       - name: Verify Flyway source parity
         run: bash scripts/verify-flyway-source-parity.sh
 
