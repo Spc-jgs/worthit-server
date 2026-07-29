@@ -5,15 +5,15 @@ spring:
         - id: worthit-auth-api
           uri: lb://worthit-auth
           predicates:
-            - Path=/api/auth/**
+            - Path=/api/v1/auth/**
         - id: worthit-tracking-api
           uri: lb://worthit-tracking
           predicates:
-            - Path=/api/tracking/**
+            - Path=/api/v1/categories/**,/api/v1/items/**,/api/v1/wishes/**,/api/v1/subscriptions/**,/api/v1/dashboard
         - id: worthit-reminder-api
           uri: lb://worthit-reminder
           predicates:
-            - Path=/api/reminders/**
+            - Path=/api/v1/reminders/**
         - id: local-infra-auth-readiness
           uri: lb://worthit-auth
           predicates:

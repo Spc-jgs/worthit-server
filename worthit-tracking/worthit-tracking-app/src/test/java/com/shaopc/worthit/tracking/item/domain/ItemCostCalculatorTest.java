@@ -86,6 +86,21 @@ class ItemCostCalculatorTest {
     }
 
     @Test
+    void exposesExactPlanDailyCostForAggregateBeforeRounding() {
+        BigDecimal exact =
+                ItemCostCalculator.calculateExactPlanDailyCost(
+                        BigDecimal.ONE,
+                        BigDecimal.ONE,
+                        null);
+
+        assertThat(exact)
+                .isEqualByComparingTo(
+                        BigDecimal.ONE.divide(
+                                BigDecimal.valueOf(365),
+                                java.math.MathContext.DECIMAL128));
+    }
+
+    @Test
     void calculatesInclusiveHoldingDays() {
         ItemCost cost = ItemCostCalculator.calculate(
                 new BigDecimal("100"),
