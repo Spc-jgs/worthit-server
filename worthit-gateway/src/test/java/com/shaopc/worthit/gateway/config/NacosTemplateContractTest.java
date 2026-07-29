@@ -82,6 +82,26 @@ class NacosTemplateContractTest {
     }
 
     @Test
+    void gatewayRoutesFrozenPublicApisToTheirOwningServices()
+            throws IOException {
+        String gateway = read(
+                templateDirectory.resolve("worthit-gateway.yaml"));
+
+        assertThat(gateway).contains(
+                        "- Path=/api/v1/auth/**",
+                        "- Path=/api/v1/categories/**,"
+                                + "/api/v1/items/**,"
+                                + "/api/v1/wishes/**,"
+                                + "/api/v1/subscriptions/**,"
+                                + "/api/v1/dashboard",
+                        "- Path=/api/v1/reminders/**")
+                .doesNotContain(
+                        "- Path=/api/auth/**",
+                        "- Path=/api/tracking/**",
+                        "- Path=/api/reminders/**");
+    }
+
+    @Test
     void synchronizationScriptUsesOnlyNacosThreeAdminApis() throws IOException {
         Path script = repositoryRoot.resolve("scripts/local-infra/nacos-config.sh");
         assertThat(script).isRegularFile();

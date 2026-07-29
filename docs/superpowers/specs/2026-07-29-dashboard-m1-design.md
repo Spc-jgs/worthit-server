@@ -31,6 +31,8 @@
 
 - Tracking 内部只读 Dashboard 查询模型。
 - `GET /api/v1/dashboard` 公网接口及 OpenAPI 描述。
+- 将 Gateway 的 Phase 0 占位路由收敛到冻结的 `/api/v1/**` 业务路径，
+  接通 Auth→Gateway→Dashboard 纵切。
 - 用户隔离、状态和逻辑删除过滤。
 - 高精度汇总、最终统一舍入和展示文案。
 - 单元、API 契约、MySQL 8.4 Testcontainers 集成和架构测试。
@@ -181,6 +183,7 @@ M1 为个人数据规模，按架构基线实时查询，不引入缓存或快�
 同时执行：
 
 - Dashboard 定向单元/API/集成测试；
+- Gateway Nacos 模板契约测试，锁定 Auth、Tracking、Reminder 的公网业务路径；
 - Tracking ArchUnit 与 OpenAPI 双组门禁；
 - Tracking Reactor 测试和全仓 `mvn clean test`；
 - `mvn -DskipTests package`；
@@ -194,6 +197,7 @@ M1 为个人数据规模，按架构基线实时查询，不引入缓存或快�
 2. `feat(tracking): 实现Dashboard只读汇总`
 3. `feat(tracking): 提供Dashboard公网接口`
 4. `test(tracking): 补充Dashboard验收门禁`
+5. `fix(gateway): 接通M1公网业务路由`
 
 每次提交只暂存当前步骤文件，提交前执行对应测试和 `git diff --check`。完成后推送
 `feature/dashboard-m1`，创建正式 PR，检查可合并状态和 CI，再使用 merge commit
