@@ -61,6 +61,29 @@ class TrackingAppArchitectureTest {
                     .resideInAPackage(
                             "..tracking.item.infrastructure..");
 
+    private static final ArchRule WISH_DOMAIN_ISOLATION =
+            noClasses()
+                    .that()
+                    .resideInAPackage("..tracking.wish.domain..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAnyPackage(
+                            "org.springframework..",
+                            "com.baomidou.mybatisplus..",
+                            "..tracking.wish.interfaces..",
+                            "..tracking.wish.infrastructure..");
+
+    private static final ArchRule WISH_PERSISTENCE_DOES_NOT_LEAK =
+            noClasses()
+                    .that()
+                    .resideInAnyPackage(
+                            "..tracking.wish.domain..",
+                            "..tracking.wish.interfaces..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAPackage(
+                            "..tracking.wish.infrastructure..");
+
     @Test
     void importsProductionTrackingClassesIncludingInfrastructure() {
         JavaClasses classes = importProductionClasses();
@@ -99,6 +122,14 @@ class TrackingAppArchitectureTest {
 
         ITEM_DOMAIN_ISOLATION.check(classes);
         ITEM_PERSISTENCE_DOES_NOT_LEAK.check(classes);
+    }
+
+    @Test
+    void wishKeepsDomainAndPersistenceBoundaries() {
+        JavaClasses classes = importProductionClasses();
+
+        WISH_DOMAIN_ISOLATION.check(classes);
+        WISH_PERSISTENCE_DOES_NOT_LEAK.check(classes);
     }
 
     private static JavaClasses importProductionClasses() {
