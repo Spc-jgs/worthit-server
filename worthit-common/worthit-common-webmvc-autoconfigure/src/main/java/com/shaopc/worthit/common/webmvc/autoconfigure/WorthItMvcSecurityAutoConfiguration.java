@@ -23,7 +23,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -161,7 +160,7 @@ public class WorthItMvcSecurityAutoConfiguration {
             trustedSourceFilterRegistration(TrustedSourceFilter filter) {
         FilterRegistrationBean<TrustedSourceFilter> registration =
                 new FilterRegistrationBean<>(filter);
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        registration.setOrder(WorthItServletFilterOrder.TRUSTED_SOURCE);
         return registration;
     }
 
@@ -177,7 +176,8 @@ public class WorthItMvcSecurityAutoConfiguration {
                     PublicAuthenticationFilter filter) {
         FilterRegistrationBean<PublicAuthenticationFilter> registration =
                 new FilterRegistrationBean<>(filter);
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 30);
+        registration.setOrder(
+                WorthItServletFilterOrder.PUBLIC_AUTHENTICATION);
         return registration;
     }
 }
