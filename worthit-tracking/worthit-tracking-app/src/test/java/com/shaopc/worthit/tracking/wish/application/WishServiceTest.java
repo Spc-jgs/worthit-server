@@ -2,12 +2,13 @@ package com.shaopc.worthit.tracking.wish.application;
 
 import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.security.context.UserContext;
-import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.category.application.CategoryReferenceResolver;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import com.shaopc.worthit.tracking.wish.domain.WishRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,8 +40,8 @@ class WishServiceTest {
     void setUp() {
         wishRepository = mock(WishRepository.class);
         itemRepository = mock(ItemRepository.class);
-        CategoryRepository categoryRepository =
-                mock(CategoryRepository.class);
+        CategoryReferenceResolver categoryReferenceResolver =
+                mock(CategoryReferenceResolver.class);
         idempotencyStore = mock(IdempotencyStore.class);
         requestDigest = mock(RequestDigest.class);
         RestoreTokenStore restoreTokenStore =
@@ -57,13 +58,14 @@ class WishServiceTest {
         service = new WishService(
                 wishRepository,
                 itemRepository,
-                categoryRepository,
+                categoryReferenceResolver,
                 idempotencyStore,
                 requestDigest,
                 restoreTokenStore,
                 outboxWriter,
                 currentUserProvider,
-                clock);
+                clock,
+                new RestoreWindowPolicy());
     }
 
     @Test

@@ -113,6 +113,10 @@ public interface ItemMapper extends BaseMapper<ItemDO> {
             <script>
             SELECT COUNT(*)
             FROM trk_item i
+            JOIN trk_category c
+              ON c.id = i.category_id
+             AND c.user_id = i.user_id
+             AND c.del_flag = 0
             WHERE i.user_id = #{userId}
               AND i.del_flag = 0
             <if test="keyword != null">

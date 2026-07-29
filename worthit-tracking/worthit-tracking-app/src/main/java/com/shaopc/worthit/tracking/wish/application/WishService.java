@@ -9,8 +9,8 @@ import com.shaopc.worthit.reminder.client.contract.ReminderClientContract;
 import com.shaopc.worthit.reminder.client.model.ReminderBusinessType;
 import com.shaopc.worthit.reminder.client.model.ReminderOperationType;
 import com.shaopc.worthit.reminder.client.model.ReminderType;
+import com.shaopc.worthit.tracking.category.application.CategoryReferenceResolver;
 import com.shaopc.worthit.tracking.category.domain.Category;
-import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyClaim;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
@@ -23,6 +23,7 @@ import com.shaopc.worthit.tracking.item.domain.ItemCostCalculator;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import com.shaopc.worthit.tracking.wish.domain.Wish;
 import com.shaopc.worthit.tracking.wish.domain.WishCost;
@@ -50,7 +51,6 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class WishService {
 
-    private static final long RESTORE_WINDOW_SECONDS = 60;
     private static final String WISH_CREATE = "WISH_CREATE";
     private static final String WISH_UPDATE = "WISH_UPDATE";
     private static final String WISH_PURCHASE = "WISH_PURCHASE";
@@ -62,13 +62,14 @@ public class WishService {
 
     private final WishRepository wishRepository;
     private final ItemRepository itemRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryReferenceResolver categoryReferenceResolver;
     private final IdempotencyStore idempotencyStore;
     private final RequestDigest requestDigest;
     private final RestoreTokenStore restoreTokenStore;
     private final ReminderOutboxWriter outboxWriter;
     private final CurrentUserProvider currentUserProvider;
     private final Clock trackingClock;
+    private final RestoreWindowPolicy restoreWindowPolicy;
 
     /** 幂等新建想买。 */
     @Transactional
@@ -87,7 +88,7 @@ public class WishService {
             return claim.replay();
         }
 
-        Category category = resolveCategory(
+        Category category = categoryReferenceResolver.resolve(
                 normalized.categoryId(), userId);
         LocalDateTime now = now();
         boolean enabled = reminderEnabled(normalized);
@@ -162,7 +163,7 @@ public class WishService {
                 || previous.version() != normalized.version()) {
             throw stateConflict();
         }
-        Category category = resolveCategory(
+        Category category = categoryReferenceResolver.resolve(
                 normalized.categoryId(), userId);
         LocalDateTime now = now();
         Wish changed = new Wish(
@@ -232,6 +233,8 @@ public class WishService {
             throw stateConflict();
         }
 
+        Category category = categoryReferenceResolver.resolve(
+                wish.categoryId(), userId);
         LocalDateTime now = now();
         Item item = itemRepository.createFromWish(new Item(
                 0, userId, wish.categoryId(), wish.name(),
@@ -253,10 +256,10 @@ public class WishService {
                 ReminderOperationType.PURCHASE_WISH);
         WishPurchaseResult result = new WishPurchaseResult(
                 toDetail(new WishWithCategory(
-                        purchased, locked.categoryName())),
+                        purchased, category.name())),
                 toItemDetail(
                         new ItemWithCategory(
-                                item, locked.categoryName())));
+                                item, category.name())));
         complete(
                 userId, WISH_PURCHASE, idempotencyKey,
                 hash, result);
@@ -327,7 +330,7 @@ public class WishService {
                 deleted, false,
                 ReminderOperationType.DELETE_OBJECT);
         LocalDateTime deadline =
-                now.plusSeconds(RESTORE_WINDOW_SECONDS);
+                restoreWindowPolicy.deadlineFrom(now);
         String token = restoreTokenStore.issue(
                 userId, WISH_RESTORE, wishId,
                 version + 1, deadline);
@@ -364,8 +367,12 @@ public class WishService {
                                 CommonWebErrorCode.RES_NOT_FOUND));
         if (!deletion.deleted()
                 || deletion.wish().version()
-                != deletedVersion
-                || !wishRepository.restore(
+                != deletedVersion) {
+            throw stateConflict();
+        }
+        categoryReferenceResolver.resolve(
+                deletion.wish().categoryId(), userId);
+        if (!wishRepository.restore(
                         wishId, userId,
                         deletedVersion, now())) {
             throw stateConflict();
@@ -564,18 +571,6 @@ public class WishService {
     private WishWithCategory required(
             long wishId, long userId) {
         return wishRepository.findByIdAndUserId(wishId, userId)
-                .orElseThrow(() -> new BusinessException(
-                        CommonWebErrorCode.RES_NOT_FOUND));
-    }
-
-    private Category resolveCategory(
-            Long categoryId, long userId) {
-        if (categoryId == null) {
-            return categoryRepository
-                    .getOrCreateUncategorized(userId);
-        }
-        return categoryRepository.findByIdAndUserId(
-                        categoryId, userId)
                 .orElseThrow(() -> new BusinessException(
                         CommonWebErrorCode.RES_NOT_FOUND));
     }

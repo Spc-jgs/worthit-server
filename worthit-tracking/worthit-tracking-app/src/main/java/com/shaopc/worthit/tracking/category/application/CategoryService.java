@@ -5,12 +5,15 @@ import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryErrorCode;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -22,6 +25,8 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final RestoreWindowPolicy restoreWindowPolicy;
+    private final Clock trackingClock;
 
     /**
      * 查询当前用户的有效分类。
@@ -62,14 +67,18 @@ public class CategoryService {
     public void delete(long categoryId) {
         long userId = currentUserId();
         Category category = categoryRepository
-                .findByIdAndUserId(categoryId, userId)
+                .findByIdAndUserIdForUpdate(categoryId, userId)
                 .orElseThrow(() -> new BusinessException(
                         CommonWebErrorCode.RES_NOT_FOUND));
         if (!category.deletable()) {
             throw new BusinessException(
                     CategoryErrorCode.BIZ_CATEGORY_SYSTEM_PROTECTED);
         }
-        if (categoryRepository.isInUse(categoryId, userId)) {
+        LocalDateTime earliestRestorableDeletion =
+                restoreWindowPolicy.earliestRestorableDeletion(
+                        LocalDateTime.now(trackingClock));
+        if (categoryRepository.isInUse(
+                categoryId, userId, earliestRestorableDeletion)) {
             throw new BusinessException(
                     CategoryErrorCode.BIZ_CATEGORY_IN_USE);
         }

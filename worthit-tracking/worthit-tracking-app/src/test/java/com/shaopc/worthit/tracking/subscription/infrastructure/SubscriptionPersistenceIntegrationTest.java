@@ -238,6 +238,35 @@ class SubscriptionPersistenceIntegrationTest {
     }
 
     @Test
+    void listTotalMatchesItemsWhenLegacyOrphanExists() {
+        SubscriptionDetail created = service.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "历史孤儿",
+                        "20",
+                        "CNY",
+                        BillingCycleType.MONTHLY,
+                        null,
+                        null,
+                        null,
+                        false));
+        jdbcTemplate.update(
+                """
+                UPDATE trk_category
+                SET del_flag = 1, delete_time = ?
+                WHERE id = ?
+                """,
+                TODAY.atStartOfDay(),
+                created.categoryId());
+
+        PageResult<SubscriptionSummary> result =
+                service.list(1, 20, null, null);
+
+        assertThat(result.getItems()).isEmpty();
+        assertThat(result.getTotal()).isZero();
+    }
+
+    @Test
     void validatesCycleCurrencyReferenceAndReminderRules() {
         assertInvalid(command(
                 "错误月付",

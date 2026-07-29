@@ -80,14 +80,18 @@ public interface SubscriptionMapper
     @Select("""
             <script>
             SELECT COUNT(*)
-            FROM trk_subscription
-            WHERE user_id = #{userId}
-              AND del_flag = 0
+            FROM trk_subscription s
+            JOIN trk_category c
+              ON c.id = s.category_id
+             AND c.user_id = s.user_id
+             AND c.del_flag = 0
+            WHERE s.user_id = #{userId}
+              AND s.del_flag = 0
             <if test="keyword != null">
-              AND name LIKE CONCAT('%', #{keyword}, '%')
+              AND s.name LIKE CONCAT('%', #{keyword}, '%')
             </if>
             <if test="categoryId != null">
-              AND category_id = #{categoryId}
+              AND s.category_id = #{categoryId}
             </if>
             </script>
             """)

@@ -6,11 +6,16 @@ import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryErrorCode;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -30,7 +35,12 @@ class CategoryServiceTest {
     void setUp() {
         repository = new InMemoryCategoryRepository();
         service = new CategoryService(
-                repository, () -> new UserContext(USER_ID));
+                repository,
+                () -> new UserContext(USER_ID),
+                new RestoreWindowPolicy(),
+                Clock.fixed(
+                        Instant.parse("2026-07-29T04:00:00Z"),
+                        ZoneOffset.UTC));
     }
 
     @Test
@@ -113,6 +123,10 @@ class CategoryServiceTest {
         service.delete(2L);
 
         assertThat(repository.findByIdAndUserId(2L, USER_ID)).isEmpty();
+        assertThat(repository.lockedCategoryId).isEqualTo(2L);
+        assertThat(repository.earliestRestorableDeletion)
+                .isEqualTo(LocalDateTime.of(
+                        2026, 7, 29, 3, 59));
     }
 
     private static final class InMemoryCategoryRepository
@@ -121,6 +135,8 @@ class CategoryServiceTest {
         private final List<Category> categories = new ArrayList<>();
         private long nextId = 10L;
         private boolean inUse;
+        private Long lockedCategoryId;
+        private LocalDateTime earliestRestorableDeletion;
 
         @Override
         public List<Category> findAllByUserId(long userId) {
@@ -137,6 +153,20 @@ class CategoryServiceTest {
                     .filter(category -> category.id() == categoryId)
                     .filter(category -> category.userId() == userId)
                     .findFirst();
+        }
+
+        @Override
+        public Optional<Category> findByIdAndUserIdForUpdate(
+                long categoryId, long userId) {
+            lockedCategoryId = categoryId;
+            return findByIdAndUserId(categoryId, userId);
+        }
+
+        @Override
+        public Optional<Category> findCustomByIdAndUserIdForUpdate(
+                long categoryId, long userId) {
+            return findByIdAndUserId(categoryId, userId)
+                    .filter(Category::deletable);
         }
 
         @Override
@@ -171,7 +201,12 @@ class CategoryServiceTest {
         }
 
         @Override
-        public boolean isInUse(long categoryId, long userId) {
+        public boolean isInUse(
+                long categoryId,
+                long userId,
+                LocalDateTime earliestRestorableDeletion) {
+            this.earliestRestorableDeletion =
+                    earliestRestorableDeletion;
             return inUse;
         }
 

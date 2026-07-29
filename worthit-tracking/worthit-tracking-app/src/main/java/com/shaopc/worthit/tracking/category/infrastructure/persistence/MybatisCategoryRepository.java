@@ -47,6 +47,25 @@ public class MybatisCategoryRepository implements CategoryRepository {
     }
 
     @Override
+    public Optional<Category> findByIdAndUserIdForUpdate(
+            long categoryId, long userId) {
+        return Optional.ofNullable(
+                        categoryMapper.selectByIdAndUserIdForUpdate(
+                                categoryId, userId))
+                .map(this::toDomain);
+    }
+
+    @Override
+    public Optional<Category> findCustomByIdAndUserIdForUpdate(
+            long categoryId, long userId) {
+        return Optional.ofNullable(
+                        categoryMapper
+                                .selectCustomByIdAndUserIdForUpdate(
+                                        categoryId, userId))
+                .map(this::toDomain);
+    }
+
+    @Override
     public Category create(long userId, String name) {
         return create(userId, name, null);
     }
@@ -98,8 +117,12 @@ public class MybatisCategoryRepository implements CategoryRepository {
     }
 
     @Override
-    public boolean isInUse(long categoryId, long userId) {
-        return categoryMapper.existsActiveReference(categoryId, userId);
+    public boolean isInUse(
+            long categoryId,
+            long userId,
+            LocalDateTime earliestRestorableDeletion) {
+        return categoryMapper.existsReferenceWithinRestoreWindow(
+                categoryId, userId, earliestRestorableDeletion);
     }
 
     @Override

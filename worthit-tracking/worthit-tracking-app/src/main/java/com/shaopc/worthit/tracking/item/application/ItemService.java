@@ -9,8 +9,8 @@ import com.shaopc.worthit.reminder.client.contract.ReminderClientContract;
 import com.shaopc.worthit.reminder.client.model.ReminderBusinessType;
 import com.shaopc.worthit.reminder.client.model.ReminderOperationType;
 import com.shaopc.worthit.reminder.client.model.ReminderType;
+import com.shaopc.worthit.tracking.category.application.CategoryReferenceResolver;
 import com.shaopc.worthit.tracking.category.domain.Category;
-import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyClaim;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
@@ -24,6 +24,7 @@ import com.shaopc.worthit.tracking.item.domain.ItemErrorCode;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -44,19 +45,19 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class ItemService {
 
-    private static final long RESTORE_WINDOW_SECONDS = 60;
     private static final String ITEM_CREATE = "ITEM_CREATE";
     private static final String ITEM_UPDATE = "ITEM_UPDATE";
     private static final String ITEM_DELETE = "ITEM_DELETE";
     private static final String ITEM_RESTORE = "ITEM_RESTORE";
     private final ItemRepository itemRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryReferenceResolver categoryReferenceResolver;
     private final IdempotencyStore idempotencyStore;
     private final RequestDigest requestDigest;
     private final ReminderOutboxWriter outboxWriter;
     private final RestoreTokenStore restoreTokenStore;
     private final CurrentUserProvider currentUserProvider;
     private final Clock trackingClock;
+    private final RestoreWindowPolicy restoreWindowPolicy;
 
     /**
      * 幂等新建物品。
@@ -88,7 +89,7 @@ public class ItemService {
             return claim.replay();
         }
 
-        Category category = resolveCategory(
+        Category category = categoryReferenceResolver.resolve(
                 normalized.categoryId(), userId);
         LocalDateTime now = LocalDateTime.now(trackingClock);
         boolean reminderEnabled = reminderEnabled(normalized);
@@ -199,7 +200,7 @@ public class ItemService {
             throw stateConflict();
         }
 
-        Category category = resolveCategory(
+        Category category = categoryReferenceResolver.resolve(
                 normalized.categoryId(), userId);
         LocalDateTime now = LocalDateTime.now(trackingClock);
         Item updated = new Item(
@@ -289,7 +290,7 @@ public class ItemService {
                     ReminderOperationType.DELETE_OBJECT);
         }
         LocalDateTime deadline =
-                now.plusSeconds(RESTORE_WINDOW_SECONDS);
+                restoreWindowPolicy.deadlineFrom(now);
         String restoreToken = restoreTokenStore.issue(
                 userId,
                 ITEM_RESTORE,
@@ -340,6 +341,8 @@ public class ItemService {
                 || state.item().version() != deletedVersion) {
             throw stateConflict();
         }
+        categoryReferenceResolver.resolve(
+                state.item().categoryId(), userId);
         if (!itemRepository.restore(
                 itemId, userId, deletedVersion, now)) {
             throw stateConflict();
@@ -359,18 +362,6 @@ public class ItemService {
                 restoreToken,
                 restored);
         return restored;
-    }
-
-    private Category resolveCategory(
-            Long categoryId, long userId) {
-        if (categoryId == null) {
-            return categoryRepository
-                    .getOrCreateUncategorized(userId);
-        }
-        return categoryRepository.findByIdAndUserId(
-                        categoryId, userId)
-                .orElseThrow(() -> new BusinessException(
-                        CommonWebErrorCode.RES_NOT_FOUND));
     }
 
     private void writeWarrantyExpectationIfNeeded(
