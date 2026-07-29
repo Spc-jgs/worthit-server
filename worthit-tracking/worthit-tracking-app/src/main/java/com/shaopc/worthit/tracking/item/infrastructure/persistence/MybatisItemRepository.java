@@ -5,6 +5,7 @@ import com.shaopc.worthit.common.core.pagination.PageQuery;
 import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.tracking.item.domain.Item;
 import com.shaopc.worthit.tracking.item.domain.ItemDeletionState;
+import com.shaopc.worthit.tracking.item.domain.ItemLifecycleStatus;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import lombok.RequiredArgsConstructor;
@@ -134,7 +135,7 @@ public class MybatisItemRepository implements ItemRepository {
                 item.warrantyReminderEnabled());
         data.setBrandModel(item.brandModel());
         data.setRemark(item.remark());
-        data.setLifecycleStatus(item.lifecycleStatus());
+        data.setLifecycleStatus(item.lifecycleStatus().code());
         data.setVersion(item.version());
         data.setCreateBy(item.userId());
         data.setCreateTime(item.createTime());
@@ -159,7 +160,8 @@ public class MybatisItemRepository implements ItemRepository {
                         view.getWarrantyReminderEnabled(),
                         view.getBrandModel(),
                         view.getRemark(),
-                        view.getLifecycleStatus(),
+                        ItemLifecycleStatus.fromCode(
+                                view.getLifecycleStatus()),
                         view.getVersion(),
                         view.getCreateTime(),
                         view.getUpdateTime()),
@@ -180,7 +182,8 @@ public class MybatisItemRepository implements ItemRepository {
                 data.getWarrantyReminderEnabled(),
                 data.getBrandModel(),
                 data.getRemark(),
-                data.getLifecycleStatus(),
+                ItemLifecycleStatus.fromCode(
+                        data.getLifecycleStatus()),
                 data.getVersion(),
                 data.getCreateTime(),
                 data.getUpdateTime());

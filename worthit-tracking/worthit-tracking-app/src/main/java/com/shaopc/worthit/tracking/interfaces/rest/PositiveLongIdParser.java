@@ -8,6 +8,9 @@ import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
  */
 public final class PositiveLongIdParser {
 
+    /** 公网正 long 标识的文本格式。 */
+    public static final String PATTERN = "[1-9]\\d{0,18}";
+
     private PositiveLongIdParser() {
     }
 

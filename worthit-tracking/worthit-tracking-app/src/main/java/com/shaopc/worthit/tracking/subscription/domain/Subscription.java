@@ -20,16 +20,9 @@ public record Subscription(
         LocalDate nextRenewalDate,
         AutoRenew autoRenew,
         boolean renewalReminderEnabled,
-        String status,
+        SubscriptionStatus status,
         String remark,
         long version,
         LocalDateTime createTime,
         LocalDateTime updateTime) {
-
-    /** 有效订阅状态。 */
-    public static final String ACTIVE = "ACTIVE";
-    /** 暂停订阅状态。 */
-    public static final String PAUSED = "PAUSED";
-    /** 结束订阅状态。 */
-    public static final String ENDED = "ENDED";
 }

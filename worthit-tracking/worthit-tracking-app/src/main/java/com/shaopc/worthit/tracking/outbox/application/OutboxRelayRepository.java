@@ -31,7 +31,7 @@ public interface OutboxRelayRepository {
     boolean markFailed(
             long eventId,
             String ownerId,
-            String status,
+            OutboxStatus status,
             int retryCount,
             LocalDateTime nextRetryAt,
             String lastError,

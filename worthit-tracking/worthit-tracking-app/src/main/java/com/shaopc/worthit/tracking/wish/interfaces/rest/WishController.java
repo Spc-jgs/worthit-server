@@ -6,6 +6,8 @@ import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.common.web.response.ApiResponse;
 import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
+import com.shaopc.worthit.tracking.interfaces.rest.TrackingHeaderNames;
+import com.shaopc.worthit.tracking.interfaces.rest.UuidFormat;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.interfaces.rest.ItemDetailResponse;
 import com.shaopc.worthit.tracking.wish.application.CreateWishCommand;
@@ -49,22 +51,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WishController {
 
-    private static final String UUID_PATTERN =
-            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
-                    + "[1-5][0-9a-fA-F]{3}-"
-                    + "[89abAB][0-9a-fA-F]{3}-"
-                    + "[0-9a-fA-F]{12}";
-
     private final WishService wishService;
 
     @PostMapping
     @Operation(summary = "新建想买")
     public ApiResponse<WishDetailResponse> create(
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             @Pattern(
-                    regexp = UUID_PATTERN,
+                    regexp = UuidFormat.PATTERN,
                     message = "幂等键必须是UUID")
             String idempotencyKey,
             @Valid @RequestBody CreateWishRequest request,
@@ -117,7 +113,7 @@ public class WishController {
             @RequestParam(
                     name = "categoryId", required = false)
             @Pattern(
-                    regexp = "[1-9]\\d{0,18}",
+                    regexp = PositiveLongIdParser.PATTERN,
                     message = "分类标识格式不正确")
             String categoryId,
             @RequestAttribute(SecurityHeaderNames.TRACE_ID)
@@ -139,7 +135,7 @@ public class WishController {
     public ApiResponse<WishDetailResponse> update(
             @Positive @PathVariable("id") long wishId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Valid @RequestBody UpdateWishRequest request,
@@ -169,7 +165,7 @@ public class WishController {
     public ApiResponse<WishPurchaseResponse> purchase(
             @Positive @PathVariable("id") long wishId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Valid @RequestBody WishVersionRequest request,
@@ -190,7 +186,7 @@ public class WishController {
     public ApiResponse<WishDetailResponse> abandon(
             @Positive @PathVariable("id") long wishId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Valid @RequestBody AbandonWishRequest request,
@@ -209,7 +205,7 @@ public class WishController {
     public ApiResponse<WishDetailResponse> reconsider(
             @Positive @PathVariable("id") long wishId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Valid @RequestBody WishVersionRequest request,
@@ -228,7 +224,7 @@ public class WishController {
     public ApiResponse<DeleteWishResponse> delete(
             @Positive @PathVariable("id") long wishId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Positive @RequestParam("version") long version,
@@ -264,7 +260,7 @@ public class WishController {
     }
 
     private static void requireUuidKey(String key) {
-        if (key == null || !key.matches(UUID_PATTERN)) {
+        if (!UuidFormat.isValid(key)) {
             throw new BusinessException(
                     CommonWebErrorCode.VAL_INVALID_ARGUMENT,
                     "幂等键必须是UUID");

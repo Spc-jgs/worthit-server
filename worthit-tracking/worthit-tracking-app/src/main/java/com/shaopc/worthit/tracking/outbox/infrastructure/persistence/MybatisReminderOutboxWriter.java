@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.reminder.client.command.ReconcileReminderCommand;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
+import com.shaopc.worthit.tracking.outbox.application.OutboxEventType;
+import com.shaopc.worthit.tracking.outbox.application.OutboxStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -19,8 +21,6 @@ import java.util.UUID;
 public class MybatisReminderOutboxWriter
         implements ReminderOutboxWriter {
 
-    private static final String EVENT_TYPE =
-            "REMINDER_RECONCILE";
     private final OutboxEventMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock trackingClock;
@@ -37,11 +37,12 @@ public class MybatisReminderOutboxWriter
             event.setAggregateId(command.businessId());
             event.setUserId(command.userId());
             event.setSourceVersion(command.sourceVersion());
-            event.setEventType(EVENT_TYPE);
+            event.setEventType(
+                    OutboxEventType.REMINDER_RECONCILE.code());
             event.setPayloadJson(
                     objectMapper.writeValueAsString(command));
             event.setSchemaVersion(command.schemaVersion());
-            event.setStatus("NEW");
+            event.setStatus(OutboxStatus.NEW.code());
             event.setRetryCount(0);
             event.setCreateTime(now);
             event.setUpdateTime(now);

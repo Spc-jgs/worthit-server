@@ -6,6 +6,8 @@ import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.common.web.response.ApiResponse;
 import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
+import com.shaopc.worthit.tracking.interfaces.rest.TrackingHeaderNames;
+import com.shaopc.worthit.tracking.interfaces.rest.UuidFormat;
 import com.shaopc.worthit.tracking.subscription.application.CreateSubscriptionCommand;
 import com.shaopc.worthit.tracking.subscription.application.DeleteSubscriptionResult;
 import com.shaopc.worthit.tracking.subscription.application.ResumeSubscriptionCommand;
@@ -48,22 +50,17 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SubscriptionController {
 
-    private static final String UUID_PATTERN =
-            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
-                    + "[1-5][0-9a-fA-F]{3}-"
-                    + "[89abAB][0-9a-fA-F]{3}-"
-                    + "[0-9a-fA-F]{12}";
     private final SubscriptionService subscriptionService;
 
     @PostMapping
     @Operation(summary = "新建订阅")
     public ApiResponse<SubscriptionDetailResponse> create(
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             @NotBlank(message = "幂等键不能为空")
             @Pattern(
-                    regexp = UUID_PATTERN,
+                    regexp = UuidFormat.PATTERN,
                     message = "幂等键必须是UUID")
             String idempotencyKey,
             @Valid @RequestBody
@@ -113,7 +110,7 @@ public class SubscriptionController {
                     name = "categoryId",
                     required = false)
             @Pattern(
-                    regexp = "[1-9]\\d{0,18}",
+                    regexp = PositiveLongIdParser.PATTERN,
                     message = "分类标识格式不正确")
             String categoryId,
             @RequestAttribute(SecurityHeaderNames.TRACE_ID)
@@ -146,11 +143,11 @@ public class SubscriptionController {
             @Positive @PathVariable("id")
             long subscriptionId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             @NotBlank(message = "幂等键不能为空")
             @Pattern(
-                    regexp = UUID_PATTERN,
+                    regexp = UuidFormat.PATTERN,
                     message = "幂等键必须是UUID")
             String idempotencyKey,
             @Valid @RequestBody
@@ -172,7 +169,7 @@ public class SubscriptionController {
             @Positive @PathVariable("id")
             long subscriptionId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Valid @RequestBody
@@ -194,7 +191,7 @@ public class SubscriptionController {
             @Positive @PathVariable("id")
             long subscriptionId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Valid @RequestBody
@@ -216,7 +213,7 @@ public class SubscriptionController {
             @Positive @PathVariable("id")
             long subscriptionId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Valid @RequestBody
@@ -241,7 +238,7 @@ public class SubscriptionController {
             @Positive @PathVariable("id")
             long subscriptionId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             String idempotencyKey,
             @Positive @RequestParam("version")
@@ -328,7 +325,7 @@ public class SubscriptionController {
 
     private static void requireUuidIdempotencyKey(String key) {
         requireIdempotencyKey(key);
-        if (!key.matches(UUID_PATTERN)) {
+        if (!UuidFormat.isValid(key)) {
             throw new BusinessException(
                     CommonWebErrorCode.VAL_INVALID_ARGUMENT,
                     "幂等键必须是UUID");

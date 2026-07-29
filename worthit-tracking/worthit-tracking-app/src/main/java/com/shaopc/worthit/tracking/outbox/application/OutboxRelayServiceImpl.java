@@ -25,8 +25,6 @@ public class OutboxRelayServiceImpl implements OutboxRelayService {
 
     private static final Logger LOGGER =
             LoggerFactory.getLogger(OutboxRelayServiceImpl.class);
-    private static final String REMINDER_RECONCILE =
-            "REMINDER_RECONCILE";
     private static final int MAX_ERROR_LENGTH = 512;
 
     private final OutboxRelayRepository repository;
@@ -88,9 +86,11 @@ public class OutboxRelayServiceImpl implements OutboxRelayService {
 
     private ReconcileReminderCommand deserialize(
             ClaimedOutboxEvent event) throws JsonProcessingException {
-        if (!REMINDER_RECONCILE.equals(event.eventType())) {
+        if (OutboxEventType.fromCode(event.eventType())
+                != OutboxEventType.REMINDER_RECONCILE) {
             throw new IllegalArgumentException(
-                    "不支持的Outbox事件类型: " + event.eventType());
+                    "不支持的Outbox事件类型: "
+                            + event.eventType());
         }
         if (event.schemaVersion()
                 != ReminderClientContract.SCHEMA_VERSION) {
@@ -126,7 +126,9 @@ public class OutboxRelayServiceImpl implements OutboxRelayService {
         LocalDateTime now = LocalDateTime.now(trackingClock);
         int retryCount = event.retryCount() + 1;
         boolean dead = retryCount >= properties.maxRetries();
-        String status = dead ? "DEAD" : "RETRY_WAIT";
+        OutboxStatus status = dead
+                ? OutboxStatus.DEAD
+                : OutboxStatus.RETRY_WAIT;
         LocalDateTime nextRetryAt = dead
                 ? null
                 : now.plus(backoff(retryCount));

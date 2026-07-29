@@ -2,6 +2,7 @@ package com.shaopc.worthit.tracking.dashboard.application;
 
 import com.shaopc.worthit.tracking.item.domain.ItemCostCalculator;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
+import com.shaopc.worthit.tracking.subscription.domain.CurrencyCodes;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionCostCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,8 +17,6 @@ import java.math.RoundingMode;
 @Service
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
-
-    private static final String CNY = "CNY";
 
     private final CurrentUserProvider currentUserProvider;
     private final DashboardFactsQuery factsQuery;
@@ -79,7 +78,8 @@ public class DashboardServiceImpl implements DashboardService {
         boolean approximate = false;
         for (DashboardSubscriptionFact subscription
                 : factsQuery.findActiveSubscriptions(userId)) {
-            boolean cny = CNY.equals(subscription.currency());
+            boolean cny = CurrencyCodes.CNY.equals(
+                    subscription.currency());
             if (!cny
                     && subscription.cnyReferenceAmount() == null) {
                 unconvertedCount++;

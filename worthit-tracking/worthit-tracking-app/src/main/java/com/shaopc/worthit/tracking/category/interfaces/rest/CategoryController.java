@@ -79,7 +79,9 @@ public class CategoryController {
         return new CategoryResponse(
                 Long.toString(category.id()),
                 category.name(),
-                category.systemCode(),
+                category.systemCode() == null
+                        ? null
+                        : category.systemCode().code(),
                 category.deletable());
     }
 }

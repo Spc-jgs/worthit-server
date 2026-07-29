@@ -16,18 +16,21 @@ import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
+import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
 import com.shaopc.worthit.tracking.restore.application.RestoreClaimCoordinator;
 import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import com.shaopc.worthit.tracking.subscription.domain.AutoRenew;
 import com.shaopc.worthit.tracking.subscription.domain.BillingCycleType;
+import com.shaopc.worthit.tracking.subscription.domain.CurrencyCodes;
 import com.shaopc.worthit.tracking.subscription.domain.Subscription;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionCostCalculator;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionDeletionState;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionErrorCode;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionMonthlyCost;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionRepository;
+import com.shaopc.worthit.tracking.subscription.domain.SubscriptionStatus;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionWithCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -48,14 +51,6 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class SubscriptionServiceImpl implements SubscriptionService {
-
-    private static final String SUB_CREATE = "SUB_CREATE";
-    private static final String SUB_UPDATE = "SUB_UPDATE";
-    private static final String SUB_PAUSE = "SUB_PAUSE";
-    private static final String SUB_END = "SUB_END";
-    private static final String SUB_RESUME = "SUB_RESUME";
-    private static final String SUB_DELETE = "SUB_DELETE";
-    private static final String SUB_RESTORE = "SUB_RESTORE";
 
     private final SubscriptionRepository repository;
     private final CategoryReferenceResolver categoryReferenceResolver;
@@ -84,7 +79,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         IdempotencyClaim<SubscriptionDetail> claim =
                 claim(
                         userId,
-                        SUB_CREATE,
+                        TrackingOperation.SUB_CREATE,
                         idempotencyKey,
                         requestHash,
                         SubscriptionDetail.class);
@@ -111,7 +106,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         normalized.nextRenewalDate(),
                         normalized.autoRenew(),
                         reminderEnabled,
-                        Subscription.ACTIVE,
+                        SubscriptionStatus.ACTIVE,
                         normalized.remark(),
                         1,
                         now,
@@ -126,7 +121,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         saved, category.name()));
         complete(
                 userId,
-                SUB_CREATE,
+                TrackingOperation.SUB_CREATE,
                 idempotencyKey,
                 requestHash,
                 detail);
@@ -188,7 +183,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         IdempotencyClaim<SubscriptionDetail> claim =
                 claim(
                         userId,
-                        SUB_UPDATE,
+                        TrackingOperation.SUB_UPDATE,
                         idempotencyKey,
                         requestHash,
                         SubscriptionDetail.class);
@@ -231,7 +226,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         updated, category.name()));
         complete(
                 userId,
-                SUB_UPDATE,
+                TrackingOperation.SUB_UPDATE,
                 idempotencyKey,
                 requestHash,
                 detail);
@@ -251,8 +246,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscriptionId,
                 version,
                 idempotencyKey,
-                SUB_PAUSE,
-                Subscription.PAUSED,
+                TrackingOperation.SUB_PAUSE,
+                SubscriptionStatus.PAUSED,
                 ReminderOperationType.PAUSE_SUBSCRIPTION);
     }
 
@@ -269,8 +264,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscriptionId,
                 version,
                 idempotencyKey,
-                SUB_END,
-                Subscription.ENDED,
+                TrackingOperation.SUB_END,
+                SubscriptionStatus.ENDED,
                 ReminderOperationType.END_SUBSCRIPTION);
     }
 
@@ -291,7 +286,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         IdempotencyClaim<SubscriptionDetail> claim =
                 claim(
                         userId,
-                        SUB_RESUME,
+                        TrackingOperation.SUB_RESUME,
                         idempotencyKey,
                         requestHash,
                         SubscriptionDetail.class);
@@ -303,8 +298,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscriptionId, userId);
         Subscription existing = view.subscription();
         requireVersion(existing, command.version());
-        if (!Subscription.PAUSED.equals(existing.status())
-                && !Subscription.ENDED.equals(
+        if (!SubscriptionStatus.PAUSED.equals(existing.status())
+                && !SubscriptionStatus.ENDED.equals(
                         existing.status())) {
             throw stateConflict();
         }
@@ -326,7 +321,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         Subscription resumed = copyAtVersion(
                 existing,
-                Subscription.ACTIVE,
+                SubscriptionStatus.ACTIVE,
                 renewalDate,
                 reminderEnabled,
                 existing.version() + 1,
@@ -345,7 +340,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         resumed, view.categoryName()));
         complete(
                 userId,
-                SUB_RESUME,
+                TrackingOperation.SUB_RESUME,
                 idempotencyKey,
                 requestHash,
                 detail);
@@ -370,7 +365,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         IdempotencyClaim<DeleteSubscriptionResult> claim =
                 claim(
                         userId,
-                        SUB_DELETE,
+                        TrackingOperation.SUB_DELETE,
                         idempotencyKey,
                         requestHash,
                         DeleteSubscriptionResult.class);
@@ -403,7 +398,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 restoreWindowPolicy.deadlineFrom(now);
         String restoreToken = restoreTokenStore.issue(
                 userId,
-                SUB_RESTORE,
+                TrackingOperation.SUB_RESTORE,
                 subscriptionId,
                 deletedVersion,
                 deadline);
@@ -414,7 +409,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         restoreToken);
         complete(
                 userId,
-                SUB_DELETE,
+                TrackingOperation.SUB_DELETE,
                 idempotencyKey,
                 requestHash,
                 result);
@@ -444,7 +439,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         .claimWithCategoryReservation(
                                 userId,
                                 state.subscription().categoryId(),
-                                SUB_RESTORE,
+                                TrackingOperation.SUB_RESTORE,
                                 subscriptionId,
                                 deletedVersion,
                                 restoreToken,
@@ -472,7 +467,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscriptionId, userId);
         restoreTokenStore.complete(
                 userId,
-                SUB_RESTORE,
+                TrackingOperation.SUB_RESTORE,
                 subscriptionId,
                 deletedVersion,
                 restoreToken,
@@ -484,8 +479,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             long subscriptionId,
             long version,
             String idempotencyKey,
-            String operationCode,
-            String targetStatus,
+            TrackingOperation operation,
+            SubscriptionStatus targetStatus,
             ReminderOperationType reminderOperation) {
         long userId = currentUserId();
         validateVersion(version);
@@ -496,7 +491,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         IdempotencyClaim<SubscriptionDetail> claim =
                 claim(
                         userId,
-                        operationCode,
+                        operation,
                         idempotencyKey,
                         requestHash,
                         SubscriptionDetail.class);
@@ -508,11 +503,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscriptionId, userId);
         Subscription existing = view.subscription();
         requireVersion(existing, version);
-        boolean allowed = Subscription.PAUSED.equals(
+        boolean allowed = SubscriptionStatus.PAUSED.equals(
                 targetStatus)
-                ? Subscription.ACTIVE.equals(existing.status())
-                : Subscription.ACTIVE.equals(existing.status())
-                || Subscription.PAUSED.equals(existing.status());
+                ? SubscriptionStatus.ACTIVE.equals(existing.status())
+                : SubscriptionStatus.ACTIVE.equals(existing.status())
+                || SubscriptionStatus.PAUSED.equals(existing.status());
         if (!allowed) {
             throw stateConflict();
         }
@@ -540,7 +535,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         changed, view.categoryName()));
         complete(
                 userId,
-                operationCode,
+                operation,
                 idempotencyKey,
                 requestHash,
                 detail);
@@ -550,7 +545,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private void writeUpdatedExpectation(
             Subscription previous,
             Subscription updated) {
-        if (!Subscription.ACTIVE.equals(updated.status())) {
+        if (!SubscriptionStatus.ACTIVE.equals(updated.status())) {
             return;
         }
         ReminderOperationType operationType;
@@ -578,7 +573,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             ReminderOperationType operationType) {
         writeExpectation(
                 subscription,
-                Subscription.ACTIVE.equals(
+                SubscriptionStatus.ACTIVE.equals(
                         subscription.status())
                         && subscription
                         .renewalReminderEnabled()
@@ -605,7 +600,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         : businessDate.minusDays(1)
                         .atStartOfDay(),
                 reminderEnabled,
-                subscription.status(),
+                subscription.status().code(),
                 operationType,
                 ReminderClientContract.SCHEMA_VERSION));
     }
@@ -642,13 +637,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 view.categoryName(),
                 subscription.amount().toPlainString(),
                 subscription.currency(),
-                subscription.billingCycleType().name(),
+                subscription.billingCycleType().code(),
                 subscription.billingCycleValue(),
                 plain(subscription.cnyReferenceAmount()),
                 subscription.nextRenewalDate(),
-                subscription.autoRenew().name(),
+                subscription.autoRenew().code(),
                 subscription.renewalReminderEnabled(),
-                subscription.status(),
+                subscription.status().code(),
                 subscription.remark(),
                 cost.originalMonthlyCost().toPlainString(),
                 cost.originalMonthlyCostDisplay(),
@@ -679,7 +674,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscription.currency(),
                 cost.originalMonthlyCostDisplay(),
                 cost.cnyMonthlyCostDisplay(),
-                subscription.status(),
+                subscription.status().code(),
                 subscription.nextRenewalDate(),
                 subscription.version(),
                 subscription.createTime());
@@ -687,14 +682,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private <T> IdempotencyClaim<T> claim(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String idempotencyKey,
             String requestHash,
             Class<T> responseType) {
         IdempotencyClaim<T> claim =
                 idempotencyStore.claim(
                         userId,
-                        operationCode,
+                        operation,
                         idempotencyKey,
                         requestHash,
                         responseType);
@@ -708,13 +703,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private <T> void complete(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String idempotencyKey,
             String requestHash,
             T response) {
         idempotencyStore.complete(
                 userId,
-                operationCode,
+                operation,
                 idempotencyKey,
                 requestHash,
                 response);
@@ -805,7 +800,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 || cycleValue != null && cycleValue <= 0
                 || cnyReferenceAmount != null
                 && cnyReferenceAmount.signum() < 0
-                || "CNY".equals(currency)
+                || CurrencyCodes.CNY.equals(currency)
                 && cnyReferenceAmount != null
                 || reminderEnabled && renewalDate == null) {
             throw new BusinessException(
@@ -866,7 +861,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     private static Subscription copyAtVersion(
             Subscription subscription,
-            String status,
+            SubscriptionStatus status,
             LocalDate nextRenewalDate,
             boolean reminderEnabled,
             long version,

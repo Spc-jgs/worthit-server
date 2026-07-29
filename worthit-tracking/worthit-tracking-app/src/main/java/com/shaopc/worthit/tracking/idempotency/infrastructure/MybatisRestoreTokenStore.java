@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
+import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -24,8 +25,6 @@ import java.util.UUID;
 public class MybatisRestoreTokenStore
         implements RestoreTokenStore {
 
-    private static final String PROCESSING = "PROCESSING";
-    private static final String SUCCEEDED = "SUCCEEDED";
     private final IdempotencyMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock trackingClock;
@@ -33,7 +32,7 @@ public class MybatisRestoreTokenStore
     @Override
     public String issue(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             long resourceId,
             long deletedVersion,
             LocalDateTime deadline) {
@@ -42,10 +41,11 @@ public class MybatisRestoreTokenStore
         IdempotencyDO grant = new IdempotencyDO();
         grant.setId(IdWorker.getId());
         grant.setUserId(userId);
-        grant.setOperationCode(operationCode);
+        grant.setOperationCode(operation.code());
         grant.setIdempotencyKey(restoreToken);
         grant.setRequestHash(hash(resourceId, deletedVersion));
-        grant.setStatus(PROCESSING);
+        grant.setStatus(
+                IdempotencyRecordStatus.PROCESSING.code());
         grant.setProcessingExpireAt(deadline);
         grant.setExpiresAt(deadline);
         grant.setCreateTime(now);
@@ -60,14 +60,14 @@ public class MybatisRestoreTokenStore
     @Override
     public <T> RestoreTokenClaim<T> claim(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             long resourceId,
             long deletedVersion,
             String restoreToken,
             LocalDateTime now,
             Class<T> responseType) {
         IdempotencyDO grant = mapper.selectForUpdate(
-                userId, operationCode, restoreToken);
+                userId, operation.code(), restoreToken);
         if (grant == null) {
             return claim(RestoreTokenClaim.Status.EXPIRED);
         }
@@ -75,7 +75,10 @@ public class MybatisRestoreTokenStore
                 .equals(grant.getRequestHash())) {
             return claim(RestoreTokenClaim.Status.CONFLICT);
         }
-        if (SUCCEEDED.equals(grant.getStatus())
+        IdempotencyRecordStatus status =
+                IdempotencyRecordStatus.fromCode(
+                        grant.getStatus());
+        if (status == IdempotencyRecordStatus.SUCCEEDED
                 && grant.getResponseJson() != null) {
             return new RestoreTokenClaim<>(
                     RestoreTokenClaim.Status.REPLAY,
@@ -83,7 +86,7 @@ public class MybatisRestoreTokenStore
                             grant.getResponseJson(),
                             responseType));
         }
-        if (!PROCESSING.equals(grant.getStatus())
+        if (status != IdempotencyRecordStatus.PROCESSING
                 || now.isAfter(grant.getExpiresAt())) {
             return claim(RestoreTokenClaim.Status.EXPIRED);
         }
@@ -93,7 +96,7 @@ public class MybatisRestoreTokenStore
     @Override
     public <T> void complete(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             long resourceId,
             long deletedVersion,
             String restoreToken,
@@ -101,10 +104,12 @@ public class MybatisRestoreTokenStore
         try {
             int updated = mapper.complete(
                     userId,
-                    operationCode,
+                    operation.code(),
                     restoreToken,
                     hash(resourceId, deletedVersion),
                     objectMapper.writeValueAsString(response),
+                    IdempotencyRecordStatus.SUCCEEDED.code(),
+                    IdempotencyRecordStatus.PROCESSING.code(),
                     LocalDateTime.now(trackingClock));
             if (updated != 1) {
                 throw new IllegalStateException(
@@ -136,7 +141,8 @@ public class MybatisRestoreTokenStore
             long resourceId, long deletedVersion) {
         try {
             MessageDigest digest =
-                    MessageDigest.getInstance("SHA-256");
+                    MessageDigest.getInstance(
+                            DigestAlgorithms.SHA_256);
             byte[] bytes = digest.digest(
                     (resourceId + ":" + deletedVersion)
                             .getBytes(StandardCharsets.UTF_8));

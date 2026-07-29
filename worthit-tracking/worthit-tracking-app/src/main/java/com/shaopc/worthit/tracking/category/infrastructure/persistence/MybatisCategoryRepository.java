@@ -3,6 +3,7 @@ package com.shaopc.worthit.tracking.category.infrastructure.persistence;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.category.domain.CategorySystemCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -73,7 +74,8 @@ public class MybatisCategoryRepository implements CategoryRepository {
     @Override
     public Category getOrCreateUncategorized(long userId) {
         Optional<Category> existing =
-                findBySystemCode(userId, Category.UNCATEGORIZED);
+                findBySystemCode(
+                        userId, CategorySystemCode.UNCATEGORIZED);
         if (existing.isPresent()) {
             return existing.orElseThrow();
         }
@@ -81,21 +83,24 @@ public class MybatisCategoryRepository implements CategoryRepository {
             return create(
                     userId,
                     "未分类",
-                    Category.UNCATEGORIZED);
+                    CategorySystemCode.UNCATEGORIZED);
         } catch (DuplicateKeyException exception) {
             return findBySystemCode(
-                            userId, Category.UNCATEGORIZED)
+                            userId, CategorySystemCode.UNCATEGORIZED)
                     .orElseThrow(() -> exception);
         }
     }
 
     private Category create(
-            long userId, String name, String systemCode) {
+            long userId,
+            String name,
+            CategorySystemCode systemCode) {
         LocalDateTime now = LocalDateTime.now(trackingClock);
         CategoryDO category = new CategoryDO();
         category.setUserId(userId);
         category.setName(name);
-        category.setSystemCode(systemCode);
+        category.setSystemCode(systemCode == null
+                ? null : systemCode.code());
         category.setVersion(1L);
         category.setCreateBy(userId);
         category.setCreateTime(now);
@@ -107,11 +112,12 @@ public class MybatisCategoryRepository implements CategoryRepository {
     }
 
     private Optional<Category> findBySystemCode(
-            long userId, String systemCode) {
+            long userId, CategorySystemCode systemCode) {
         CategoryDO category = categoryMapper.selectOne(
                 Wrappers.<CategoryDO>lambdaQuery()
                         .eq(CategoryDO::getUserId, userId)
-                        .eq(CategoryDO::getSystemCode, systemCode)
+                        .eq(CategoryDO::getSystemCode,
+                                systemCode.code())
                         .eq(CategoryDO::getDelFlag, false));
         return Optional.ofNullable(category).map(this::toDomain);
     }
@@ -147,6 +153,9 @@ public class MybatisCategoryRepository implements CategoryRepository {
                 category.getId(),
                 category.getUserId(),
                 category.getName(),
-                category.getSystemCode());
+                category.getSystemCode() == null
+                        ? null
+                        : CategorySystemCode.fromCode(
+                                category.getSystemCode()));
     }
 }

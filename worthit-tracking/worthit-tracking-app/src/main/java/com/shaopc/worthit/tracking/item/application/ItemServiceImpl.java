@@ -16,11 +16,13 @@ import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
+import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import com.shaopc.worthit.tracking.item.domain.Item;
 import com.shaopc.worthit.tracking.item.domain.ItemCost;
 import com.shaopc.worthit.tracking.item.domain.ItemCostCalculator;
 import com.shaopc.worthit.tracking.item.domain.ItemDeletionState;
 import com.shaopc.worthit.tracking.item.domain.ItemErrorCode;
+import com.shaopc.worthit.tracking.item.domain.ItemLifecycleStatus;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
@@ -46,10 +48,6 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class ItemServiceImpl implements ItemService {
 
-    private static final String ITEM_CREATE = "ITEM_CREATE";
-    private static final String ITEM_UPDATE = "ITEM_UPDATE";
-    private static final String ITEM_DELETE = "ITEM_DELETE";
-    private static final String ITEM_RESTORE = "ITEM_RESTORE";
     private final ItemRepository itemRepository;
     private final CategoryReferenceResolver categoryReferenceResolver;
     private final IdempotencyStore idempotencyStore;
@@ -78,7 +76,7 @@ public class ItemServiceImpl implements ItemService {
         IdempotencyClaim<ItemDetail> claim =
                 idempotencyStore.claim(
                         userId,
-                        ITEM_CREATE,
+                        TrackingOperation.ITEM_CREATE,
                         idempotencyKey,
                         requestHash,
                         ItemDetail.class);
@@ -109,7 +107,7 @@ public class ItemServiceImpl implements ItemService {
                 reminderEnabled,
                 normalized.brandModel(),
                 normalized.remark(),
-                Item.HOLDING,
+                ItemLifecycleStatus.HOLDING,
                 1,
                 now,
                 now));
@@ -121,7 +119,7 @@ public class ItemServiceImpl implements ItemService {
                 today);
         idempotencyStore.complete(
                 userId,
-                ITEM_CREATE,
+                TrackingOperation.ITEM_CREATE,
                 idempotencyKey,
                 requestHash,
                 detail);
@@ -184,7 +182,7 @@ public class ItemServiceImpl implements ItemService {
         IdempotencyClaim<ItemDetail> claim =
                 idempotencyStore.claim(
                         userId,
-                        ITEM_UPDATE,
+                        TrackingOperation.ITEM_UPDATE,
                         idempotencyKey,
                         requestHash,
                         ItemDetail.class);
@@ -238,7 +236,7 @@ public class ItemServiceImpl implements ItemService {
                         "Item更新后无法读取"));
         idempotencyStore.complete(
                 userId,
-                ITEM_UPDATE,
+                TrackingOperation.ITEM_UPDATE,
                 idempotencyKey,
                 requestHash,
                 detail);
@@ -261,7 +259,7 @@ public class ItemServiceImpl implements ItemService {
         IdempotencyClaim<DeleteItemResult> claim =
                 idempotencyStore.claim(
                         userId,
-                        ITEM_DELETE,
+                        TrackingOperation.ITEM_DELETE,
                         idempotencyKey,
                         requestHash,
                         DeleteItemResult.class);
@@ -300,7 +298,7 @@ public class ItemServiceImpl implements ItemService {
                 restoreWindowPolicy.deadlineFrom(now);
         String restoreToken = restoreTokenStore.issue(
                 userId,
-                ITEM_RESTORE,
+                TrackingOperation.ITEM_RESTORE,
                 itemId,
                 deletedVersion,
                 deadline);
@@ -308,7 +306,7 @@ public class ItemServiceImpl implements ItemService {
                 itemId, deadline, restoreToken);
         idempotencyStore.complete(
                 userId,
-                ITEM_DELETE,
+                TrackingOperation.ITEM_DELETE,
                 idempotencyKey,
                 requestHash,
                 result);
@@ -335,7 +333,7 @@ public class ItemServiceImpl implements ItemService {
                         .claimWithCategoryReservation(
                                 userId,
                                 state.item().categoryId(),
-                                ITEM_RESTORE,
+                                TrackingOperation.ITEM_RESTORE,
                                 itemId,
                                 deletedVersion,
                                 restoreToken,
@@ -364,7 +362,7 @@ public class ItemServiceImpl implements ItemService {
                         "Item恢复后无法读取"));
         restoreTokenStore.complete(
                 userId,
-                ITEM_RESTORE,
+                TrackingOperation.ITEM_RESTORE,
                 itemId,
                 deletedVersion,
                 restoreToken,
@@ -433,7 +431,7 @@ public class ItemServiceImpl implements ItemService {
                 businessDate,
                 remindAt,
                 reminderEnabled,
-                item.lifecycleStatus(),
+                item.lifecycleStatus().code(),
                 operationType,
                 ReminderClientContract.SCHEMA_VERSION));
     }
@@ -461,7 +459,7 @@ public class ItemServiceImpl implements ItemService {
                 item.warrantyReminderEnabled(),
                 item.brandModel(),
                 item.remark(),
-                item.lifecycleStatus(),
+                item.lifecycleStatus().code(),
                 cost.expectedUseDays(),
                 cost.planDailyCost().toPlainString(),
                 cost.planDailyCostDisplay(),
@@ -489,7 +487,7 @@ public class ItemServiceImpl implements ItemService {
                 view.categoryName(),
                 cost.planDailyCostDisplay(),
                 cost.residualUnset(),
-                item.lifecycleStatus(),
+                item.lifecycleStatus().code(),
                 item.createTime());
     }
 

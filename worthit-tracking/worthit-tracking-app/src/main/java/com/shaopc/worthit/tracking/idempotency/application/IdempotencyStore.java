@@ -10,7 +10,7 @@ public interface IdempotencyStore {
      */
     <T> IdempotencyClaim<T> claim(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String idempotencyKey,
             String requestHash,
             Class<T> responseType);
@@ -20,7 +20,7 @@ public interface IdempotencyStore {
      */
     <T> void complete(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String idempotencyKey,
             String requestHash,
             T response);

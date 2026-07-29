@@ -2,6 +2,7 @@ package com.shaopc.worthit.tracking.outbox.infrastructure.persistence;
 
 import com.shaopc.worthit.tracking.outbox.application.ClaimedOutboxEvent;
 import com.shaopc.worthit.tracking.outbox.application.OutboxRelayRepository;
+import com.shaopc.worthit.tracking.outbox.application.OutboxStatus;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +36,12 @@ public class MybatisOutboxRelayRepository
             int limit) {
         List<OutboxEventDO> candidates =
                 mapper.selectClaimableForUpdate(
-                        now, leaseExpiredAt, limit);
+                        now,
+                        leaseExpiredAt,
+                        OutboxStatus.NEW.code(),
+                        OutboxStatus.RETRY_WAIT.code(),
+                        OutboxStatus.PROCESSING.code(),
+                        limit);
         List<ClaimedOutboxEvent> claimed =
                 new ArrayList<>(candidates.size());
         for (OutboxEventDO candidate : candidates) {
@@ -43,6 +49,10 @@ public class MybatisOutboxRelayRepository
                     candidate.getId(),
                     ownerId,
                     now,
+                    OutboxStatus.PROCESSING.code(),
+                    OutboxStatus.NEW.code(),
+                    OutboxStatus.RETRY_WAIT.code(),
+                    OutboxStatus.PROCESSING.code(),
                     leaseExpiredAt) == 1) {
                 claimed.add(toClaimed(candidate));
             }
@@ -57,7 +67,11 @@ public class MybatisOutboxRelayRepository
             String ownerId,
             LocalDateTime now) {
         return mapper.markSucceeded(
-                eventId, ownerId, now) == 1;
+                eventId,
+                ownerId,
+                OutboxStatus.SUCCEEDED.code(),
+                OutboxStatus.PROCESSING.code(),
+                now) == 1;
     }
 
     @Override
@@ -65,7 +79,7 @@ public class MybatisOutboxRelayRepository
     public boolean markFailed(
             long eventId,
             String ownerId,
-            String status,
+            OutboxStatus status,
             int retryCount,
             LocalDateTime nextRetryAt,
             String lastError,
@@ -74,7 +88,8 @@ public class MybatisOutboxRelayRepository
         return mapper.markFailed(
                 eventId,
                 ownerId,
-                status,
+                status.code(),
+                OutboxStatus.PROCESSING.code(),
                 retryCount,
                 nextRetryAt,
                 lastError,

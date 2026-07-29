@@ -16,10 +16,12 @@ import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
+import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.domain.Item;
 import com.shaopc.worthit.tracking.item.domain.ItemCost;
 import com.shaopc.worthit.tracking.item.domain.ItemCostCalculator;
+import com.shaopc.worthit.tracking.item.domain.ItemLifecycleStatus;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
@@ -32,6 +34,7 @@ import com.shaopc.worthit.tracking.wish.domain.WishCostCalculator;
 import com.shaopc.worthit.tracking.wish.domain.WishDeletionState;
 import com.shaopc.worthit.tracking.wish.domain.WishErrorCode;
 import com.shaopc.worthit.tracking.wish.domain.WishRepository;
+import com.shaopc.worthit.tracking.wish.domain.WishStatus;
 import com.shaopc.worthit.tracking.wish.domain.WishWithCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -51,15 +54,6 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class WishServiceImpl implements WishService {
-
-    private static final String WISH_CREATE = "WISH_CREATE";
-    private static final String WISH_UPDATE = "WISH_UPDATE";
-    private static final String WISH_PURCHASE = "WISH_PURCHASE";
-    private static final String WISH_ABANDON = "WISH_ABANDON";
-    private static final String WISH_RECONSIDER =
-            "WISH_RECONSIDER";
-    private static final String WISH_DELETE = "WISH_DELETE";
-    private static final String WISH_RESTORE = "WISH_RESTORE";
 
     private final WishRepository wishRepository;
     private final ItemRepository itemRepository;
@@ -85,7 +79,8 @@ public class WishServiceImpl implements WishService {
         validate(normalized, today);
         String hash = requestDigest.hash(normalized);
         IdempotencyClaim<WishDetail> claim = claim(
-                userId, WISH_CREATE, idempotencyKey,
+                userId, TrackingOperation.WISH_CREATE,
+                idempotencyKey,
                 hash, WishDetail.class);
         if (claim.status() == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
@@ -102,7 +97,7 @@ public class WishServiceImpl implements WishService {
                 normalized.residualValue(),
                 normalized.reason(), normalized.remark(),
                 normalized.watchDeadline(), enabled,
-                Wish.CONSIDERING, null, null, null, null,
+                WishStatus.CONSIDERING, null, null, null, null,
                 1, now, now));
         if (enabled && !saved.watchDeadline().isBefore(today)) {
             writeExpectation(
@@ -112,7 +107,8 @@ public class WishServiceImpl implements WishService {
         WishDetail result = toDetail(
                 new WishWithCategory(saved, category.name()));
         complete(
-                userId, WISH_CREATE, idempotencyKey,
+                userId, TrackingOperation.WISH_CREATE,
+                idempotencyKey,
                 hash, result);
         return result;
     }
@@ -157,7 +153,8 @@ public class WishServiceImpl implements WishService {
         String hash = requestDigest.hash(
                 new UpdateDigest(wishId, normalized));
         IdempotencyClaim<WishDetail> claim = claim(
-                userId, WISH_UPDATE, idempotencyKey,
+                userId, TrackingOperation.WISH_UPDATE,
+                idempotencyKey,
                 hash, WishDetail.class);
         if (claim.status() == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
@@ -165,7 +162,7 @@ public class WishServiceImpl implements WishService {
 
         WishWithCategory current = required(wishId, userId);
         Wish previous = current.wish();
-        if (!Wish.CONSIDERING.equals(previous.status())
+        if (!WishStatus.CONSIDERING.equals(previous.status())
                 || previous.version() != normalized.version()) {
             throw stateConflict();
         }
@@ -193,7 +190,8 @@ public class WishServiceImpl implements WishService {
         WishDetail result = toDetail(
                 new WishWithCategory(changed, category.name()));
         complete(
-                userId, WISH_UPDATE, idempotencyKey,
+                userId, TrackingOperation.WISH_UPDATE,
+                idempotencyKey,
                 hash, result);
         return result;
     }
@@ -215,7 +213,8 @@ public class WishServiceImpl implements WishService {
         PurchaseDigest digest = new PurchaseDigest(wishId, version);
         String hash = requestDigest.hash(digest);
         IdempotencyClaim<WishPurchaseResult> claim = claim(
-                userId, WISH_PURCHASE, idempotencyKey,
+                userId, TrackingOperation.WISH_PURCHASE,
+                idempotencyKey,
                 hash, WishPurchaseResult.class);
         if (claim.status() == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
@@ -226,16 +225,17 @@ public class WishServiceImpl implements WishService {
                 .orElseThrow(() -> new BusinessException(
                         CommonWebErrorCode.RES_NOT_FOUND));
         Wish wish = locked.wish();
-        if (Wish.PURCHASED.equals(wish.status())
+        if (WishStatus.PURCHASED.equals(wish.status())
                 && wish.convertedItemId() != null) {
             WishPurchaseResult replay =
                     existingPurchase(locked, userId);
             complete(
-                    userId, WISH_PURCHASE, idempotencyKey,
+                    userId, TrackingOperation.WISH_PURCHASE,
+                    idempotencyKey,
                     hash, replay);
             return replay;
         }
-        if (!Wish.CONSIDERING.equals(wish.status())
+        if (!WishStatus.CONSIDERING.equals(wish.status())
                 || wish.version() != version) {
             throw stateConflict();
         }
@@ -247,7 +247,7 @@ public class WishServiceImpl implements WishService {
                 0, userId, wish.categoryId(), wish.name(),
                 wish.expectedPrice(), wish.expectedYears(),
                 wish.residualValue(), null, null, false,
-                null, null, Item.HOLDING, 1, now, now),
+                null, null, ItemLifecycleStatus.HOLDING, 1, now, now),
                 wish.id());
         String conversionKey = "wish:" + wish.id();
         if (!wishRepository.purchase(
@@ -256,7 +256,7 @@ public class WishServiceImpl implements WishService {
             throw stateConflict();
         }
         Wish purchased = copyStatus(
-                wish, Wish.PURCHASED, version + 1,
+                wish, WishStatus.PURCHASED, version + 1,
                 item.id(), conversionKey, now);
         writeExpectation(
                 purchased, false,
@@ -268,7 +268,8 @@ public class WishServiceImpl implements WishService {
                         new ItemWithCategory(
                                 item, category.name())));
         complete(
-                userId, WISH_PURCHASE, idempotencyKey,
+                userId, TrackingOperation.WISH_PURCHASE,
+                idempotencyKey,
                 hash, result);
         return result;
     }
@@ -285,9 +286,9 @@ public class WishServiceImpl implements WishService {
                 wishId, version,
                 normalizeNullableText(reason),
                 idempotencyKey,
-                WISH_ABANDON,
-                Wish.CONSIDERING,
-                Wish.ABANDONED,
+                TrackingOperation.WISH_ABANDON,
+                WishStatus.CONSIDERING,
+                WishStatus.ABANDONED,
                 ReminderOperationType.ABANDON_WISH);
     }
 
@@ -300,9 +301,9 @@ public class WishServiceImpl implements WishService {
             String idempotencyKey) {
         return changeStatus(
                 wishId, version, null, idempotencyKey,
-                WISH_RECONSIDER,
-                Wish.ABANDONED,
-                Wish.CONSIDERING,
+                TrackingOperation.WISH_RECONSIDER,
+                WishStatus.ABANDONED,
+                WishStatus.CONSIDERING,
                 ReminderOperationType.CONTINUE_CONSIDERING);
     }
 
@@ -318,7 +319,8 @@ public class WishServiceImpl implements WishService {
         DeleteDigest digest = new DeleteDigest(wishId, version);
         String hash = requestDigest.hash(digest);
         IdempotencyClaim<DeleteWishResult> claim = claim(
-                userId, WISH_DELETE, idempotencyKey,
+                userId, TrackingOperation.WISH_DELETE,
+                idempotencyKey,
                 hash, DeleteWishResult.class);
         if (claim.status() == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
@@ -342,12 +344,13 @@ public class WishServiceImpl implements WishService {
         LocalDateTime deadline =
                 restoreWindowPolicy.deadlineFrom(now);
         String token = restoreTokenStore.issue(
-                userId, WISH_RESTORE, wishId,
+                userId, TrackingOperation.WISH_RESTORE, wishId,
                 version + 1, deadline);
         DeleteWishResult result =
                 new DeleteWishResult(wishId, deadline, token);
         complete(
-                userId, WISH_DELETE, idempotencyKey,
+                userId, TrackingOperation.WISH_DELETE,
+                idempotencyKey,
                 hash, result);
         return result;
     }
@@ -370,7 +373,7 @@ public class WishServiceImpl implements WishService {
                         .claimWithCategoryReservation(
                                 userId,
                                 deletion.wish().categoryId(),
-                                WISH_RESTORE,
+                                TrackingOperation.WISH_RESTORE,
                                 wishId,
                                 deletedVersion,
                                 restoreToken,
@@ -394,7 +397,7 @@ public class WishServiceImpl implements WishService {
         }
         WishDetail result = toDetail(required(wishId, userId));
         restoreTokenStore.complete(
-                userId, WISH_RESTORE, wishId,
+                userId, TrackingOperation.WISH_RESTORE, wishId,
                 deletedVersion, restoreToken, result);
         return result;
     }
@@ -404,9 +407,9 @@ public class WishServiceImpl implements WishService {
             long version,
             String abandonReason,
             String idempotencyKey,
-            String operationCode,
-            String expectedStatus,
-            String targetStatus,
+            TrackingOperation operation,
+            WishStatus expectedStatus,
+            WishStatus targetStatus,
             ReminderOperationType reminderOperation) {
         long userId = currentUserId();
         validateVersion(version);
@@ -414,7 +417,7 @@ public class WishServiceImpl implements WishService {
                 wishId, version, abandonReason);
         String hash = requestDigest.hash(digest);
         IdempotencyClaim<WishDetail> claim = claim(
-                userId, operationCode, idempotencyKey,
+                userId, operation, idempotencyKey,
                 hash, WishDetail.class);
         if (claim.status() == IdempotencyClaim.Status.REPLAY) {
             return claim.replay();
@@ -426,9 +429,9 @@ public class WishServiceImpl implements WishService {
             throw stateConflict();
         }
         LocalDateTime now = now();
-        String savedReason = Wish.ABANDONED.equals(targetStatus)
+        String savedReason = WishStatus.ABANDONED.equals(targetStatus)
                 ? abandonReason : wish.lastAbandonReason();
-        LocalDateTime savedAt = Wish.ABANDONED.equals(targetStatus)
+        LocalDateTime savedAt = WishStatus.ABANDONED.equals(targetStatus)
                 ? now : wish.lastAbandonAt();
         if (!wishRepository.changeStatus(
                 wishId, userId, version,
@@ -446,7 +449,7 @@ public class WishServiceImpl implements WishService {
                 targetStatus, savedReason, savedAt,
                 wish.convertedItemId(), wish.conversionKey(),
                 version + 1, wish.createTime(), now);
-        boolean enable = Wish.CONSIDERING.equals(targetStatus)
+        boolean enable = WishStatus.CONSIDERING.equals(targetStatus)
                 && changed.watchReminderEnabled()
                 && changed.watchDeadline() != null
                 && !changed.watchDeadline().isBefore(today());
@@ -455,7 +458,7 @@ public class WishServiceImpl implements WishService {
                 new WishWithCategory(
                         changed, current.categoryName()));
         complete(
-                userId, operationCode, idempotencyKey,
+                userId, operation, idempotencyKey,
                 hash, result);
         return result;
     }
@@ -498,7 +501,7 @@ public class WishServiceImpl implements WishService {
                 deadline == null
                         ? null : deadline.atStartOfDay(),
                 enabled,
-                wish.status(),
+                wish.status().code(),
                 operation,
                 ReminderClientContract.SCHEMA_VERSION));
     }
@@ -528,7 +531,8 @@ public class WishServiceImpl implements WishService {
                 plain(wish.residualValue()),
                 cost.residualUnset(), wish.reason(),
                 wish.remark(), wish.watchDeadline(),
-                wish.watchReminderEnabled(), wish.status(),
+                wish.watchReminderEnabled(),
+                wish.status().code(),
                 wish.lastAbandonReason(),
                 wish.lastAbandonAt(),
                 wish.convertedItemId(),
@@ -551,7 +555,7 @@ public class WishServiceImpl implements WishService {
                 plain(wish.expectedPrice()),
                 cost.planDailyCostDisplay(),
                 cost.residualUnset(), wish.watchDeadline(),
-                wish.status(), wish.version(),
+                wish.status().code(), wish.version(),
                 wish.createTime());
     }
 
@@ -569,7 +573,7 @@ public class WishServiceImpl implements WishService {
                 item.warrantyExpireDate(),
                 item.warrantyReminderEnabled(),
                 item.brandModel(), item.remark(),
-                item.lifecycleStatus(),
+                item.lifecycleStatus().code(),
                 cost.expectedUseDays(),
                 cost.planDailyCost().toPlainString(),
                 cost.planDailyCostDisplay(),
@@ -592,12 +596,12 @@ public class WishServiceImpl implements WishService {
 
     private <T> IdempotencyClaim<T> claim(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String key,
             String hash,
             Class<T> type) {
         IdempotencyClaim<T> claim = idempotencyStore.claim(
-                userId, operationCode, key, hash, type);
+                userId, operation, key, hash, type);
         if (claim.status() == IdempotencyClaim.Status.CONFLICT) {
             throw new BusinessException(
                     WishErrorCode.IDEM_CONFLICT);
@@ -607,12 +611,12 @@ public class WishServiceImpl implements WishService {
 
     private <T> void complete(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String key,
             String hash,
             T result) {
         idempotencyStore.complete(
-                userId, operationCode, key, hash, result);
+                userId, operation, key, hash, result);
     }
 
     private static CreateWishCommand normalize(
@@ -720,7 +724,7 @@ public class WishServiceImpl implements WishService {
 
     private static Wish copyStatus(
             Wish wish,
-            String status,
+            WishStatus status,
             long version,
             Long itemId,
             String conversionKey,
