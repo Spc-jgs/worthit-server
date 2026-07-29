@@ -32,16 +32,16 @@ public interface OutboxEventMapper
                    locked_at, last_error, processed_at,
                    create_time, update_time
             FROM trk_outbox_event
-            WHERE status = 'NEW'
+            WHERE status = #{newStatus}
                OR (
-                    status = 'RETRY_WAIT'
+                    status = #{retryWaitStatus}
                     AND (
                         next_retry_at IS NULL
                         OR next_retry_at <= #{now}
                     )
                )
                OR (
-                    status = 'PROCESSING'
+                    status = #{processingStatus}
                     AND locked_at < #{leaseExpiredAt}
                )
             ORDER BY id
@@ -51,6 +51,9 @@ public interface OutboxEventMapper
     List<OutboxEventDO> selectClaimableForUpdate(
             @Param("now") LocalDateTime now,
             @Param("leaseExpiredAt") LocalDateTime leaseExpiredAt,
+            @Param("newStatus") String newStatus,
+            @Param("retryWaitStatus") String retryWaitStatus,
+            @Param("processingStatus") String processingStatus,
             @Param("limit") int limit);
 
     /**
@@ -58,22 +61,22 @@ public interface OutboxEventMapper
      */
     @Update("""
             UPDATE trk_outbox_event
-            SET status = 'PROCESSING',
+            SET status = #{targetStatus},
                 locked_by = #{ownerId},
                 locked_at = #{now},
                 update_time = #{now}
             WHERE id = #{id}
               AND (
-                    status = 'NEW'
+                    status = #{newStatus}
                     OR (
-                        status = 'RETRY_WAIT'
+                        status = #{retryWaitStatus}
                         AND (
                             next_retry_at IS NULL
                             OR next_retry_at <= #{now}
                         )
                     )
                     OR (
-                        status = 'PROCESSING'
+                        status = #{processingStatus}
                         AND locked_at < #{leaseExpiredAt}
                     )
               )
@@ -82,6 +85,10 @@ public interface OutboxEventMapper
             @Param("id") long id,
             @Param("ownerId") String ownerId,
             @Param("now") LocalDateTime now,
+            @Param("targetStatus") String targetStatus,
+            @Param("newStatus") String newStatus,
+            @Param("retryWaitStatus") String retryWaitStatus,
+            @Param("processingStatus") String processingStatus,
             @Param("leaseExpiredAt") LocalDateTime leaseExpiredAt);
 
     /**
@@ -89,7 +96,7 @@ public interface OutboxEventMapper
      */
     @Update("""
             UPDATE trk_outbox_event
-            SET status = 'SUCCEEDED',
+            SET status = #{targetStatus},
                 next_retry_at = NULL,
                 locked_by = NULL,
                 locked_at = NULL,
@@ -97,12 +104,14 @@ public interface OutboxEventMapper
                 processed_at = #{now},
                 update_time = #{now}
             WHERE id = #{id}
-              AND status = 'PROCESSING'
+              AND status = #{expectedStatus}
               AND locked_by = #{ownerId}
             """)
     int markSucceeded(
             @Param("id") long id,
             @Param("ownerId") String ownerId,
+            @Param("targetStatus") String targetStatus,
+            @Param("expectedStatus") String expectedStatus,
             @Param("now") LocalDateTime now);
 
     /**
@@ -119,13 +128,14 @@ public interface OutboxEventMapper
                 processed_at = #{processedAt},
                 update_time = #{now}
             WHERE id = #{id}
-              AND status = 'PROCESSING'
+              AND status = #{expectedStatus}
               AND locked_by = #{ownerId}
             """)
     int markFailed(
             @Param("id") long id,
             @Param("ownerId") String ownerId,
             @Param("status") String status,
+            @Param("expectedStatus") String expectedStatus,
             @Param("retryCount") int retryCount,
             @Param("nextRetryAt") LocalDateTime nextRetryAt,
             @Param("lastError") String lastError,

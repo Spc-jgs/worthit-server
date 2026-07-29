@@ -57,14 +57,14 @@ public interface IdempotencyMapper {
     @Update("""
             UPDATE trk_idempotency_record
             SET response_json = #{responseJson},
-                status = 'SUCCEEDED',
+                status = #{targetStatus},
                 processing_expire_at = NULL,
                 update_time = #{updateTime}
             WHERE user_id = #{userId}
               AND operation_code = #{operationCode}
               AND idempotency_key = #{idempotencyKey}
               AND request_hash = #{requestHash}
-              AND status = 'PROCESSING'
+              AND status = #{expectedStatus}
             """)
     int complete(
             @Param("userId") long userId,
@@ -72,5 +72,7 @@ public interface IdempotencyMapper {
             @Param("idempotencyKey") String idempotencyKey,
             @Param("requestHash") String requestHash,
             @Param("responseJson") String responseJson,
+            @Param("targetStatus") String targetStatus,
+            @Param("expectedStatus") String expectedStatus,
             @Param("updateTime") LocalDateTime updateTime);
 }

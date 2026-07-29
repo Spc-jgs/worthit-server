@@ -130,16 +130,17 @@ public interface WishMapper extends BaseMapper<WishDO> {
             WHERE id = #{wish.id}
               AND user_id = #{wish.userId}
               AND version = #{expectedVersion}
-              AND status = 'CONSIDERING'
+              AND status = #{expectedStatus}
               AND del_flag = 0
             """)
     int updateByVersion(
             @Param("wish") Wish wish,
+            @Param("expectedStatus") String expectedStatus,
             @Param("expectedVersion") long expectedVersion);
 
     @Update("""
             UPDATE trk_wish
-            SET status = 'PURCHASED',
+            SET status = #{targetStatus},
                 converted_item_id = #{itemId},
                 conversion_key = #{conversionKey},
                 version = version + 1,
@@ -148,7 +149,7 @@ public interface WishMapper extends BaseMapper<WishDO> {
             WHERE id = #{wishId}
               AND user_id = #{userId}
               AND version = #{expectedVersion}
-              AND status = 'CONSIDERING'
+              AND status = #{expectedStatus}
               AND del_flag = 0
             """)
     int purchase(
@@ -157,6 +158,8 @@ public interface WishMapper extends BaseMapper<WishDO> {
             @Param("expectedVersion") long expectedVersion,
             @Param("itemId") long itemId,
             @Param("conversionKey") String conversionKey,
+            @Param("expectedStatus") String expectedStatus,
+            @Param("targetStatus") String targetStatus,
             @Param("now") LocalDateTime now);
 
     @Update("""

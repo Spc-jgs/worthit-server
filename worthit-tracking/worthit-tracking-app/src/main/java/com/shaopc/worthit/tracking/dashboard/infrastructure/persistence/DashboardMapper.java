@@ -22,10 +22,11 @@ public interface DashboardMapper {
             FROM trk_item
             WHERE user_id = #{userId}
               AND del_flag = 0
-              AND lifecycle_status = 'HOLDING'
+              AND lifecycle_status = #{lifecycleStatus}
             """)
     List<DashboardItemFactDO> selectHoldingItems(
-            @Param("userId") long userId);
+            @Param("userId") long userId,
+            @Param("lifecycleStatus") String lifecycleStatus);
 
     /**
      * 查询有效且未删除订阅的成本事实。
@@ -39,10 +40,11 @@ public interface DashboardMapper {
             FROM trk_subscription
             WHERE user_id = #{userId}
               AND del_flag = 0
-              AND status = 'ACTIVE'
+              AND status = #{status}
             """)
     List<DashboardSubscriptionFactDO> selectActiveSubscriptions(
-            @Param("userId") long userId);
+            @Param("userId") long userId,
+            @Param("status") String status);
 
     /**
      * 汇总考虑中且未删除想买的数量和预计金额。
@@ -54,8 +56,9 @@ public interface DashboardMapper {
             FROM trk_wish
             WHERE user_id = #{userId}
               AND del_flag = 0
-              AND status = 'CONSIDERING'
+              AND status = #{status}
             """)
     DashboardWishAggregateDO selectConsideringWishAggregate(
-            @Param("userId") long userId);
+            @Param("userId") long userId,
+            @Param("status") String status);
 }

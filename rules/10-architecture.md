@@ -96,6 +96,8 @@ Client 禁止包含：
 ### `application`
 
 - 负责编排用例、权限、幂等、事务和跨聚合协调；
+- 对 Interfaces 或其他用例调用方暴露的应用服务使用 `*Service` 接口定义公开
+  用例，由同包 `*ServiceImpl` 承载实现；调用方只依赖接口，不增加空转委托层；
 - 将接口 DTO 转换为 Command/Query，再调用 Domain；
 - 定义对 Repository、Client、Clock 等外部能力的端口；
 - 不承载 SQL、HTTP 客户端细节或复杂领域公式。

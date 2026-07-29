@@ -6,6 +6,7 @@ import com.shaopc.worthit.common.webmvc.error.DefaultErrorHttpStatusResolver;
 import com.shaopc.worthit.common.webmvc.error.WorthItRestExceptionHandler;
 import com.shaopc.worthit.tracking.category.application.CategoryService;
 import com.shaopc.worthit.tracking.category.domain.Category;
+import com.shaopc.worthit.tracking.category.domain.CategorySystemCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -46,7 +47,8 @@ class CategoryControllerTest {
     void returnsCategoryListContract() throws Exception {
         when(categoryService.list()).thenReturn(List.of(
                 new Category(
-                        1938L, 1001L, "未分类", "UNCATEGORIZED"),
+                        1938L, 1001L, "未分类",
+                        CategorySystemCode.UNCATEGORIZED),
                 new Category(1939L, 1001L, "数码", null)));
 
         mockMvc.perform(get("/api/v1/categories")

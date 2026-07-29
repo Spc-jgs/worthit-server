@@ -35,14 +35,14 @@ public interface SubscriptionRepository {
             long subscriptionId,
             long userId,
             long expectedVersion,
-            String expectedStatus,
-            String targetStatus,
+            SubscriptionStatus expectedStatus,
+            SubscriptionStatus targetStatus,
             LocalDateTime now);
 
     boolean resume(
             Subscription subscription,
             long expectedVersion,
-            String expectedStatus);
+            SubscriptionStatus expectedStatus);
 
     boolean delete(
             long subscriptionId,

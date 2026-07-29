@@ -20,11 +20,8 @@ public record Item(
         boolean warrantyReminderEnabled,
         String brandModel,
         String remark,
-        String lifecycleStatus,
+        ItemLifecycleStatus lifecycleStatus,
         long version,
         LocalDateTime createTime,
         LocalDateTime updateTime) {
-
-    /** M1 新建物品的固定生命周期状态。 */
-    public static final String HOLDING = "HOLDING";
 }

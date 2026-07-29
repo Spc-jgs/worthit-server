@@ -6,6 +6,7 @@ import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryErrorCode;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.category.domain.CategorySystemCode;
 import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +35,7 @@ class CategoryServiceTest {
     @BeforeEach
     void setUp() {
         repository = new InMemoryCategoryRepository();
-        service = new CategoryService(
+        service = new CategoryServiceImpl(
                 repository,
                 () -> new UserContext(USER_ID),
                 new RestoreWindowPolicy(),
@@ -46,7 +47,9 @@ class CategoryServiceTest {
     @Test
     void listsOnlyCurrentUsersActiveCategories() {
         repository.categories.addAll(List.of(
-                new Category(1L, USER_ID, "未分类", "UNCATEGORIZED"),
+                new Category(
+                        1L, USER_ID, "未分类",
+                        CategorySystemCode.UNCATEGORIZED),
                 new Category(2L, USER_ID, "数码", null),
                 new Category(3L, 2002L, "他人分类", null)));
 
@@ -79,7 +82,8 @@ class CategoryServiceTest {
     void rejectsDeletingSystemCategory() {
         repository.categories.add(
                 new Category(
-                        1L, USER_ID, "未分类", "UNCATEGORIZED"));
+                        1L, USER_ID, "未分类",
+                        CategorySystemCode.UNCATEGORIZED));
 
         assertThatThrownBy(() -> service.delete(1L))
                 .isInstanceOfSatisfying(
@@ -186,7 +190,8 @@ class CategoryServiceTest {
         public Category getOrCreateUncategorized(long userId) {
             return categories.stream()
                     .filter(category -> category.userId() == userId)
-                    .filter(category -> Category.UNCATEGORIZED.equals(
+                    .filter(category ->
+                            CategorySystemCode.UNCATEGORIZED.equals(
                             category.systemCode()))
                     .findFirst()
                     .orElseGet(() -> {
@@ -194,7 +199,7 @@ class CategoryServiceTest {
                                 nextId++,
                                 userId,
                                 "未分类",
-                                Category.UNCATEGORIZED);
+                                CategorySystemCode.UNCATEGORIZED);
                         categories.add(created);
                         return created;
                     });

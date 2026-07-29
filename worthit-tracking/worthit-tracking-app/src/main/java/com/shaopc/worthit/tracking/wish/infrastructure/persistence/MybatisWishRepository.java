@@ -6,6 +6,7 @@ import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.tracking.wish.domain.Wish;
 import com.shaopc.worthit.tracking.wish.domain.WishDeletionState;
 import com.shaopc.worthit.tracking.wish.domain.WishRepository;
+import com.shaopc.worthit.tracking.wish.domain.WishStatus;
 import com.shaopc.worthit.tracking.wish.domain.WishWithCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -80,7 +81,10 @@ public class MybatisWishRepository implements WishRepository {
 
     @Override
     public boolean update(Wish wish, long expectedVersion) {
-        return mapper.updateByVersion(wish, expectedVersion) == 1;
+        return mapper.updateByVersion(
+                wish,
+                WishStatus.CONSIDERING.code(),
+                expectedVersion) == 1;
     }
 
     @Override
@@ -93,7 +97,10 @@ public class MybatisWishRepository implements WishRepository {
             LocalDateTime now) {
         return mapper.purchase(
                 wishId, userId, expectedVersion,
-                itemId, conversionKey, now) == 1;
+                itemId, conversionKey,
+                WishStatus.CONSIDERING.code(),
+                WishStatus.PURCHASED.code(),
+                now) == 1;
     }
 
     @Override
@@ -101,14 +108,14 @@ public class MybatisWishRepository implements WishRepository {
             long wishId,
             long userId,
             long expectedVersion,
-            String expectedStatus,
-            String targetStatus,
+            WishStatus expectedStatus,
+            WishStatus targetStatus,
             String abandonReason,
             LocalDateTime abandonAt,
             LocalDateTime now) {
         return mapper.changeStatus(
                 wishId, userId, expectedVersion,
-                expectedStatus, targetStatus,
+                expectedStatus.code(), targetStatus.code(),
                 abandonReason, abandonAt, now) == 1;
     }
 
@@ -145,7 +152,7 @@ public class MybatisWishRepository implements WishRepository {
         data.setWatchDeadline(wish.watchDeadline());
         data.setWatchReminderEnabled(
                 wish.watchReminderEnabled());
-        data.setStatus(wish.status());
+        data.setStatus(wish.status().code());
         data.setLastAbandonReason(wish.lastAbandonReason());
         data.setLastAbandonAt(wish.lastAbandonAt());
         data.setConvertedItemId(wish.convertedItemId());
@@ -173,7 +180,8 @@ public class MybatisWishRepository implements WishRepository {
                 data.getRemark(), data.getWatchDeadline(),
                 Boolean.TRUE.equals(
                         data.getWatchReminderEnabled()),
-                data.getStatus(), data.getLastAbandonReason(),
+                WishStatus.fromCode(data.getStatus()),
+                data.getLastAbandonReason(),
                 data.getLastAbandonAt(),
                 data.getConvertedItemId(),
                 data.getConversionKey(), data.getVersion(),

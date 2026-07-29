@@ -1,5 +1,6 @@
 package com.shaopc.worthit.tracking.subscription.interfaces.rest;
 
+import com.shaopc.worthit.tracking.interfaces.rest.UuidFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
@@ -12,7 +13,7 @@ public record RestoreSubscriptionRequest(
         long version,
         @NotBlank(message = "恢复令牌不能为空")
         @Pattern(
-                regexp = "[0-9a-fA-F-]{36}",
+                regexp = UuidFormat.PATTERN,
                 message = "恢复令牌格式不正确")
         String restoreToken) {
 }

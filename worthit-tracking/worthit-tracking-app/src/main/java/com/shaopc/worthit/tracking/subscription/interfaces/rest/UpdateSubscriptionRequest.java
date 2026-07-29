@@ -1,5 +1,6 @@
 package com.shaopc.worthit.tracking.subscription.interfaces.rest;
 
+import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
 import com.shaopc.worthit.tracking.subscription.domain.AutoRenew;
 import com.shaopc.worthit.tracking.subscription.domain.BillingCycleType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,7 +25,7 @@ public record UpdateSubscriptionRequest(
         @Size(max = 64, message = "订阅名称不能超过64个字符")
         String name,
         @Pattern(
-                regexp = "[1-9]\\d{0,18}",
+                regexp = PositiveLongIdParser.PATTERN,
                 message = "分类标识格式不正确")
         String categoryId,
         @NotBlank(message = "周期金额不能为空")

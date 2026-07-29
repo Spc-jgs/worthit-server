@@ -3,6 +3,7 @@ package com.shaopc.worthit.tracking.restore.application;
 import com.shaopc.worthit.tracking.category.application.CategoryReferenceResolver;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
+import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +27,7 @@ public class RestoreClaimCoordinator {
      *
      * @param userId 用户标识
      * @param categoryId 原分类标识
-     * @param operationCode 恢复操作编码
+     * @param operation 恢复操作
      * @param resourceId 资源标识
      * @param deletedVersion 删除后的版本
      * @param restoreToken 恢复令牌
@@ -38,7 +39,7 @@ public class RestoreClaimCoordinator {
     public <T> RestoreTokenClaim<T> claimWithCategoryReservation(
             long userId,
             long categoryId,
-            String operationCode,
+            TrackingOperation operation,
             long resourceId,
             long deletedVersion,
             String restoreToken,
@@ -47,7 +48,7 @@ public class RestoreClaimCoordinator {
         categoryReferenceResolver.resolve(categoryId, userId);
         return restoreTokenStore.claim(
                 userId,
-                operationCode,
+                operation,
                 resourceId,
                 deletedVersion,
                 restoreToken,

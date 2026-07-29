@@ -12,6 +12,8 @@ import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
 import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
 import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
+import com.shaopc.worthit.tracking.interfaces.rest.TrackingHeaderNames;
+import com.shaopc.worthit.tracking.interfaces.rest.UuidFormat;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -47,11 +49,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ItemController {
 
-    private static final String UUID_PATTERN =
-            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
-                    + "[1-5][0-9a-fA-F]{3}-"
-                    + "[89abAB][0-9a-fA-F]{3}-"
-                    + "[0-9a-fA-F]{12}";
     private final ItemService itemService;
 
     /**
@@ -61,11 +58,11 @@ public class ItemController {
     @Operation(summary = "新建物品")
     public ApiResponse<ItemDetailResponse> create(
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             @NotBlank(message = "幂等键不能为空")
             @Pattern(
-                    regexp = UUID_PATTERN,
+                    regexp = UuidFormat.PATTERN,
                     message = "幂等键必须是UUID")
             String idempotencyKey,
             @Valid @RequestBody CreateItemRequest request,
@@ -117,7 +114,7 @@ public class ItemController {
                     name = "categoryId",
                     required = false)
             @Pattern(
-                    regexp = "[1-9]\\d{0,18}",
+                    regexp = PositiveLongIdParser.PATTERN,
                     message = "分类标识格式不正确")
             String categoryId,
             @RequestAttribute(SecurityHeaderNames.TRACE_ID)
@@ -149,11 +146,11 @@ public class ItemController {
     public ApiResponse<ItemDetailResponse> update(
             @Positive @PathVariable("id") long itemId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             @NotBlank(message = "幂等键不能为空")
             @Pattern(
-                    regexp = UUID_PATTERN,
+                    regexp = UuidFormat.PATTERN,
                     message = "幂等键必须是UUID")
             String idempotencyKey,
             @Valid @RequestBody UpdateItemRequest request,
@@ -176,11 +173,11 @@ public class ItemController {
     public ApiResponse<DeleteItemResponse> delete(
             @Positive @PathVariable("id") long itemId,
             @RequestHeader(
-                    value = "Idempotency-Key",
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
                     required = false)
             @NotBlank(message = "幂等键不能为空")
             @Pattern(
-                    regexp = UUID_PATTERN,
+                    regexp = UuidFormat.PATTERN,
                     message = "幂等键必须是UUID")
             String idempotencyKey,
             @Positive

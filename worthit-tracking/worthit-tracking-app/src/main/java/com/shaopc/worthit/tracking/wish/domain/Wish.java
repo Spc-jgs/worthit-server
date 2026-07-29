@@ -19,7 +19,7 @@ public record Wish(
         String remark,
         LocalDate watchDeadline,
         boolean watchReminderEnabled,
-        String status,
+        WishStatus status,
         String lastAbandonReason,
         LocalDateTime lastAbandonAt,
         Long convertedItemId,
@@ -27,11 +27,4 @@ public record Wish(
         long version,
         LocalDateTime createTime,
         LocalDateTime updateTime) {
-
-    /** 正在考虑。 */
-    public static final String CONSIDERING = "CONSIDERING";
-    /** 已购买并转换为物品。 */
-    public static final String PURCHASED = "PURCHASED";
-    /** 已放弃。 */
-    public static final String ABANDONED = "ABANDONED";
 }

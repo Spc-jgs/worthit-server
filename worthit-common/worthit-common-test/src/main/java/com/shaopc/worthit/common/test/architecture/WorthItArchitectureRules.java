@@ -1,7 +1,12 @@
 package com.shaopc.worthit.common.test.architecture;
 
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -10,6 +15,77 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * <p>消费者应仅在测试作用域引入本类，并由各模块自己的架构测试扫描真实生产代码。</p>
  */
 public final class WorthItArchitectureRules {
+
+    private static final ArchCondition<JavaClass>
+            IMPLEMENT_MATCHING_SERVICE_INTERFACE =
+            new ArchCondition<>(
+                    "实现同包同名的 Service 接口") {
+                @Override
+                public void check(
+                        JavaClass implementation,
+                        ConditionEvents events) {
+                    String simpleName =
+                            implementation.getSimpleName();
+                    String serviceSimpleName = simpleName.substring(
+                            0, simpleName.length() - "Impl".length());
+                    String expectedInterface =
+                            implementation.getPackageName()
+                                    + "." + serviceSimpleName;
+                    boolean matches =
+                            implementation.getAllRawInterfaces()
+                                    .stream()
+                                    .anyMatch(contract ->
+                                            contract.getName().equals(
+                                                    expectedInterface));
+                    String message = implementation.getName()
+                            + (matches ? " 实现了 " : " 未实现 ")
+                            + expectedInterface;
+                    events.add(new SimpleConditionEvent(
+                            implementation, matches, message));
+                }
+            };
+
+    /**
+     * Application Service 必须用接口声明公开用例。
+     */
+    public static final ArchRule
+            APPLICATION_SERVICES_MUST_BE_INTERFACES =
+            classes()
+                    .that()
+                    .resideInAPackage("..application..")
+                    .and()
+                    .haveSimpleNameEndingWith("Service")
+                    .should()
+                    .beInterfaces()
+                    .allowEmptyShould(false)
+                    .as("Application Service 必须是接口");
+
+    /**
+     * Application Service 实现必须采用 ServiceImpl 并实现匹配接口。
+     */
+    public static final ArchRule
+            APPLICATION_SERVICE_IMPLEMENTATIONS_MUST_MATCH_INTERFACES =
+            classes()
+                    .that()
+                    .resideInAPackage("..application..")
+                    .and()
+                    .haveSimpleNameEndingWith("ServiceImpl")
+                    .should(IMPLEMENT_MATCHING_SERVICE_INTERFACE)
+                    .allowEmptyShould(false)
+                    .as("Application ServiceImpl 必须实现同包同名 Service 接口");
+
+    /**
+     * 接口适配层只能依赖应用服务接口，不能绑定实现类。
+     */
+    public static final ArchRule
+            INTERFACE_ADAPTERS_MUST_NOT_DEPEND_ON_SERVICE_IMPLEMENTATIONS =
+            noClasses()
+                    .that()
+                    .resideInAPackage("..interfaces..")
+                    .should()
+                    .dependOnClassesThat()
+                    .haveSimpleNameEndingWith("ServiceImpl")
+                    .as("接口适配层不得依赖 Application ServiceImpl");
 
     /**
      * Common 模块不得依赖任何业务服务或网关包。

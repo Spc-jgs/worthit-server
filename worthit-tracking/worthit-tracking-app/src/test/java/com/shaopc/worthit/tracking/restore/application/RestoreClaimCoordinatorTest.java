@@ -5,6 +5,7 @@ import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.tracking.category.application.CategoryReferenceResolver;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenClaim;
 import com.shaopc.worthit.tracking.idempotency.application.RestoreTokenStore;
+import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -24,7 +25,8 @@ class RestoreClaimCoordinatorTest {
     private static final long CATEGORY_ID = 2001L;
     private static final long RESOURCE_ID = 3001L;
     private static final long DELETED_VERSION = 2L;
-    private static final String OPERATION_CODE = "ITEM_RESTORE";
+    private static final TrackingOperation OPERATION =
+            TrackingOperation.ITEM_RESTORE;
     private static final String RESTORE_TOKEN = "restore-token";
     private static final LocalDateTime NOW =
             LocalDateTime.of(2026, 7, 29, 17, 0, 59);
@@ -50,7 +52,7 @@ class RestoreClaimCoordinatorTest {
                         null);
         when(restoreTokenStore.claim(
                 USER_ID,
-                OPERATION_CODE,
+                OPERATION,
                 RESOURCE_ID,
                 DELETED_VERSION,
                 RESTORE_TOKEN,
@@ -61,7 +63,7 @@ class RestoreClaimCoordinatorTest {
                 coordinator.claimWithCategoryReservation(
                         USER_ID,
                         CATEGORY_ID,
-                        OPERATION_CODE,
+                        OPERATION,
                         RESOURCE_ID,
                         DELETED_VERSION,
                         RESTORE_TOKEN,
@@ -76,7 +78,7 @@ class RestoreClaimCoordinatorTest {
                 .resolve(CATEGORY_ID, USER_ID);
         order.verify(restoreTokenStore).claim(
                 USER_ID,
-                OPERATION_CODE,
+                OPERATION,
                 RESOURCE_ID,
                 DELETED_VERSION,
                 RESTORE_TOKEN,
@@ -95,7 +97,7 @@ class RestoreClaimCoordinatorTest {
                 coordinator.claimWithCategoryReservation(
                         USER_ID,
                         CATEGORY_ID,
-                        OPERATION_CODE,
+                        OPERATION,
                         RESOURCE_ID,
                         DELETED_VERSION,
                         RESTORE_TOKEN,

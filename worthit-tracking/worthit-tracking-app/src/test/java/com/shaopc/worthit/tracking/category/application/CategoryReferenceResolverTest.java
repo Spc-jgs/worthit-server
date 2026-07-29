@@ -4,6 +4,7 @@ import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
+import com.shaopc.worthit.tracking.category.domain.CategorySystemCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +33,8 @@ class CategoryReferenceResolverTest {
     @Test
     void resolvesDefaultCategoryWithoutLockingSystemRow() {
         Category uncategorized = new Category(
-                1L, USER_ID, "未分类", Category.UNCATEGORIZED);
+                1L, USER_ID, "未分类",
+                CategorySystemCode.UNCATEGORIZED);
         when(repository.getOrCreateUncategorized(USER_ID))
                 .thenReturn(uncategorized);
 
@@ -64,7 +66,8 @@ class CategoryReferenceResolverTest {
     @Test
     void validatesExplicitSystemCategoryWithoutKeepingRowLock() {
         Category uncategorized = new Category(
-                1L, USER_ID, "未分类", Category.UNCATEGORIZED);
+                1L, USER_ID, "未分类",
+                CategorySystemCode.UNCATEGORIZED);
         when(repository.findByIdAndUserId(
                 uncategorized.id(), USER_ID))
                 .thenReturn(Optional.of(uncategorized));

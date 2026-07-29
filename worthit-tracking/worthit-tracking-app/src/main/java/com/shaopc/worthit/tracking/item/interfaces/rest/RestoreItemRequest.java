@@ -1,5 +1,6 @@
 package com.shaopc.worthit.tracking.item.interfaces.rest;
 
+import com.shaopc.worthit.tracking.interfaces.rest.UuidFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -17,10 +18,7 @@ public record RestoreItemRequest(
         long version,
         @NotBlank(message = "恢复令牌不能为空")
         @Pattern(
-                regexp = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
-                        + "[1-5][0-9a-fA-F]{3}-"
-                        + "[89abAB][0-9a-fA-F]{3}-"
-                        + "[0-9a-fA-F]{12}",
+                regexp = UuidFormat.PATTERN,
                 message = "恢复令牌格式不正确")
         String restoreToken) {
 }

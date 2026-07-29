@@ -23,7 +23,7 @@ class DashboardServiceTest {
     private final CurrentUserProvider currentUserProvider =
             () -> new UserContext(USER_ID);
     private final DashboardService service =
-            new DashboardService(
+            new DashboardServiceImpl(
                     currentUserProvider, factsQuery);
 
     @BeforeEach

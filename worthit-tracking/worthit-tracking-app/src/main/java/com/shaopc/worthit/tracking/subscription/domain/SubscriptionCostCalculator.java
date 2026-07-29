@@ -30,7 +30,7 @@ public final class SubscriptionCostCalculator {
             BigDecimal cnyReferenceAmount) {
         BigDecimal original = normalizeMonthly(
                 amount, cycleType, cycleValue);
-        boolean cny = "CNY".equals(currency);
+        boolean cny = CurrencyCodes.CNY.equals(currency);
         boolean include = cny || cnyReferenceAmount != null;
         boolean approximate = !cny && cnyReferenceAmount != null;
         BigDecimal cnyMonthly = cny

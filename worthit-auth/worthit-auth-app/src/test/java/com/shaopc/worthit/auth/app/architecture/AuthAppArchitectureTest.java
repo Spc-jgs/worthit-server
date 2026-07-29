@@ -24,6 +24,21 @@ class AuthAppArchitectureTest {
     }
 
     @Test
+    void authApplicationServicesUseInterfacesAndImplementations() {
+        JavaClasses classes = importProductionClasses();
+
+        WorthItArchitectureRules
+                .APPLICATION_SERVICES_MUST_BE_INTERFACES
+                .check(classes);
+        WorthItArchitectureRules
+                .APPLICATION_SERVICE_IMPLEMENTATIONS_MUST_MATCH_INTERFACES
+                .check(classes);
+        WorthItArchitectureRules
+                .INTERFACE_ADAPTERS_MUST_NOT_DEPEND_ON_SERVICE_IMPLEMENTATIONS
+                .check(classes);
+    }
+
+    @Test
     void authAppReceivesWebMvcAutoconfigureThroughStarter() {
         assertThatCode(() -> Class.forName(
                 "com.shaopc.worthit.common.webmvc.autoconfigure."

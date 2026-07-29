@@ -12,10 +12,7 @@ public record Category(
         long id,
         long userId,
         String name,
-        String systemCode) {
-
-    /** 系统“未分类”的稳定编码。 */
-    public static final String UNCATEGORIZED = "UNCATEGORIZED";
+        CategorySystemCode systemCode) {
 
     /**
      * 判断分类是否允许用户删除。

@@ -12,7 +12,7 @@ public interface RestoreTokenStore {
      */
     String issue(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             long resourceId,
             long deletedVersion,
             LocalDateTime deadline);
@@ -22,7 +22,7 @@ public interface RestoreTokenStore {
      */
     <T> RestoreTokenClaim<T> claim(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             long resourceId,
             long deletedVersion,
             String restoreToken,
@@ -34,7 +34,7 @@ public interface RestoreTokenStore {
      */
     <T> void complete(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             long resourceId,
             long deletedVersion,
             String restoreToken,

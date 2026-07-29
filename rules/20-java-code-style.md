@@ -16,7 +16,10 @@ com.shaopc.worthit.tracking.item.infrastructure
 - 不建立 `util`、`misc`、`manager`、`common` 等含义不清的大杂烩包。
 - 类型使用 PascalCase，方法、参数和字段使用 camelCase，常量使用 UPPER_SNAKE_CASE。
 - 布尔值使用能直接表达真假语义的名称，例如 `reminderEnabled`、`deleted`；避免 `flag`、`statusFlag`。
-- 接口不添加无意义的 `I` 前缀。实现类型按职责命名，例如 `MybatisItemRepository`、`WechatLoginGateway`，不默认使用 `Impl`。
+- 接口不添加无意义的 `I` 前缀。Application Service 使用 `*Service` 接口与
+  `*ServiceImpl` 实现，Controller、Scheduler 和其他调用方只依赖接口。Repository、
+  Gateway、Client Adapter 等实现仍按职责命名，例如 `MybatisItemRepository`、
+  `WechatLoginGateway`，不机械使用 `Impl`。
 
 ## 类型角色与后缀
 
@@ -119,6 +122,8 @@ com.shaopc.worthit.tracking.item.infrastructure
 ### Application Service
 
 - 负责编排用例、权限归属、幂等入口、事务和 Outbox。
+- 使用 `*Service` 接口声明公开用例，`*ServiceImpl` 承载实现；接口不得复制实现
+  细节，Impl 不得退化为空转代理。
 - 在边界处完成 Request/Client DTO、Command/Query、Domain Model、DO 之间的转换。
 - 明确事务开始和结束，不把远程调用当成本地事务的一部分。
 - 状态转换调用 Domain 行为，不在多个 Application Service 中复制同一业务规则。

@@ -1,5 +1,6 @@
 package com.shaopc.worthit.tracking.wish.interfaces.rest;
 
+import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -16,7 +17,7 @@ public record CreateWishRequest(
         @Size(max = 64, message = "想买名称不能超过64个字符")
         String name,
         @Pattern(
-                regexp = "[1-9]\\d{0,18}",
+                regexp = PositiveLongIdParser.PATTERN,
                 message = "分类标识格式不正确")
         String categoryId,
         @NotBlank(message = "预计价格不能为空")

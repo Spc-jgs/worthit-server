@@ -107,14 +107,14 @@ public interface SubscriptionMapper
                 amount = #{subscription.amount},
                 currency = #{subscription.currency},
                 billing_cycle_type =
-                    #{subscription.billingCycleType},
+                    #{billingCycleType},
                 billing_cycle_value =
                     #{subscription.billingCycleValue},
                 cny_reference_amount =
                     #{subscription.cnyReferenceAmount},
                 next_renewal_date =
                     #{subscription.nextRenewalDate},
-                auto_renew = #{subscription.autoRenew},
+                auto_renew = #{autoRenew},
                 renewal_reminder_enabled =
                     #{subscription.renewalReminderEnabled},
                 remark = #{subscription.remark},
@@ -129,6 +129,10 @@ public interface SubscriptionMapper
     int updateByVersion(
             @Param("subscription")
             Subscription subscription,
+            @Param("billingCycleType")
+            String billingCycleType,
+            @Param("autoRenew")
+            String autoRenew,
             @Param("expectedVersion")
             long expectedVersion);
 
@@ -158,7 +162,7 @@ public interface SubscriptionMapper
                     #{subscription.nextRenewalDate},
                 renewal_reminder_enabled =
                     #{subscription.renewalReminderEnabled},
-                status = 'ACTIVE',
+                status = #{targetStatus},
                 version = version + 1,
                 update_by = #{subscription.userId},
                 update_time = #{subscription.updateTime}
@@ -174,7 +178,9 @@ public interface SubscriptionMapper
             @Param("expectedVersion")
             long expectedVersion,
             @Param("expectedStatus")
-            String expectedStatus);
+            String expectedStatus,
+            @Param("targetStatus")
+            String targetStatus);
 
     @Update("""
             UPDATE trk_subscription

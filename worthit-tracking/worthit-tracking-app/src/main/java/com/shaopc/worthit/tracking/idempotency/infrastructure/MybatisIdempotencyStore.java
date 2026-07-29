@@ -5,10 +5,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyClaim;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
+import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
@@ -18,8 +20,10 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class MybatisIdempotencyStore implements IdempotencyStore {
 
-    private static final String PROCESSING = "PROCESSING";
-    private static final String SUCCEEDED = "SUCCEEDED";
+    private static final Duration PROCESSING_TIMEOUT =
+            Duration.ofMinutes(1);
+    private static final Duration RECORD_RETENTION =
+            Duration.ofDays(1);
     private final IdempotencyMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock trackingClock;
@@ -27,7 +31,7 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
     @Override
     public <T> IdempotencyClaim<T> claim(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String idempotencyKey,
             String requestHash,
             Class<T> responseType) {
@@ -35,18 +39,20 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
         IdempotencyDO candidate = new IdempotencyDO();
         candidate.setId(IdWorker.getId());
         candidate.setUserId(userId);
-        candidate.setOperationCode(operationCode);
+        candidate.setOperationCode(operation.code());
         candidate.setIdempotencyKey(idempotencyKey);
         candidate.setRequestHash(requestHash);
-        candidate.setStatus(PROCESSING);
-        candidate.setProcessingExpireAt(now.plusMinutes(1));
-        candidate.setExpiresAt(now.plusDays(1));
+        candidate.setStatus(
+                IdempotencyRecordStatus.PROCESSING.code());
+        candidate.setProcessingExpireAt(
+                now.plus(PROCESSING_TIMEOUT));
+        candidate.setExpiresAt(now.plus(RECORD_RETENTION));
         candidate.setCreateTime(now);
         candidate.setUpdateTime(now);
         int inserted = mapper.insertClaim(candidate);
 
         IdempotencyDO locked = mapper.selectForUpdate(
-                userId, operationCode, idempotencyKey);
+                userId, operation.code(), idempotencyKey);
         if (!requestHash.equals(locked.getRequestHash())) {
             return new IdempotencyClaim<>(
                     IdempotencyClaim.Status.CONFLICT, null);
@@ -55,7 +61,9 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
             return new IdempotencyClaim<>(
                     IdempotencyClaim.Status.NEW, null);
         }
-        if (SUCCEEDED.equals(locked.getStatus())
+        if (IdempotencyRecordStatus.fromCode(
+                locked.getStatus())
+                == IdempotencyRecordStatus.SUCCEEDED
                 && locked.getResponseJson() != null) {
             return new IdempotencyClaim<>(
                     IdempotencyClaim.Status.REPLAY,
@@ -70,17 +78,19 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
     @Override
     public <T> void complete(
             long userId,
-            String operationCode,
+            TrackingOperation operation,
             String idempotencyKey,
             String requestHash,
             T response) {
         try {
             int updated = mapper.complete(
                     userId,
-                    operationCode,
+                    operation.code(),
                     idempotencyKey,
                     requestHash,
                     objectMapper.writeValueAsString(response),
+                    IdempotencyRecordStatus.SUCCEEDED.code(),
+                    IdempotencyRecordStatus.PROCESSING.code(),
                     LocalDateTime.now(trackingClock));
             if (updated != 1) {
                 throw new IllegalStateException(

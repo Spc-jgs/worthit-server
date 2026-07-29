@@ -42,8 +42,8 @@ public interface WishRepository {
             long wishId,
             long userId,
             long expectedVersion,
-            String expectedStatus,
-            String targetStatus,
+            WishStatus expectedStatus,
+            WishStatus targetStatus,
             String abandonReason,
             LocalDateTime abandonAt,
             LocalDateTime now);

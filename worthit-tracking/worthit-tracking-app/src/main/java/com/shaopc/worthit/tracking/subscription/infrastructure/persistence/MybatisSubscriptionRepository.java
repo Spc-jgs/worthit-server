@@ -8,6 +8,7 @@ import com.shaopc.worthit.tracking.subscription.domain.BillingCycleType;
 import com.shaopc.worthit.tracking.subscription.domain.Subscription;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionDeletionState;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionRepository;
+import com.shaopc.worthit.tracking.subscription.domain.SubscriptionStatus;
 import com.shaopc.worthit.tracking.subscription.domain.SubscriptionWithCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -89,7 +90,10 @@ public class MybatisSubscriptionRepository
             Subscription subscription,
             long expectedVersion) {
         return mapper.updateByVersion(
-                subscription, expectedVersion) == 1;
+                subscription,
+                subscription.billingCycleType().code(),
+                subscription.autoRenew().code(),
+                expectedVersion) == 1;
     }
 
     @Override
@@ -97,15 +101,15 @@ public class MybatisSubscriptionRepository
             long subscriptionId,
             long userId,
             long expectedVersion,
-            String expectedStatus,
-            String targetStatus,
+            SubscriptionStatus expectedStatus,
+            SubscriptionStatus targetStatus,
             LocalDateTime now) {
         return mapper.changeStatus(
                 subscriptionId,
                 userId,
                 expectedVersion,
-                expectedStatus,
-                targetStatus,
+                expectedStatus.code(),
+                targetStatus.code(),
                 now) == 1;
     }
 
@@ -113,11 +117,12 @@ public class MybatisSubscriptionRepository
     public boolean resume(
             Subscription subscription,
             long expectedVersion,
-            String expectedStatus) {
+            SubscriptionStatus expectedStatus) {
         return mapper.resume(
                 subscription,
                 expectedVersion,
-                expectedStatus) == 1;
+                expectedStatus.code(),
+                SubscriptionStatus.ACTIVE.code()) == 1;
     }
 
     @Override
@@ -155,17 +160,17 @@ public class MybatisSubscriptionRepository
         data.setAmount(subscription.amount());
         data.setCurrency(subscription.currency());
         data.setBillingCycleType(
-                subscription.billingCycleType().name());
+                subscription.billingCycleType().code());
         data.setBillingCycleValue(
                 subscription.billingCycleValue());
         data.setCnyReferenceAmount(
                 subscription.cnyReferenceAmount());
         data.setNextRenewalDate(
                 subscription.nextRenewalDate());
-        data.setAutoRenew(subscription.autoRenew().name());
+        data.setAutoRenew(subscription.autoRenew().code());
         data.setRenewalReminderEnabled(
                 subscription.renewalReminderEnabled());
-        data.setStatus(subscription.status());
+        data.setStatus(subscription.status().code());
         data.setRemark(subscription.remark());
         data.setVersion(subscription.version());
         data.setCreateBy(subscription.userId());
@@ -186,15 +191,16 @@ public class MybatisSubscriptionRepository
                         view.getName(),
                         view.getAmount(),
                         view.getCurrency(),
-                        BillingCycleType.valueOf(
+                        BillingCycleType.fromCode(
                                 view.getBillingCycleType()),
                         view.getBillingCycleValue(),
                         view.getCnyReferenceAmount(),
                         view.getNextRenewalDate(),
-                        AutoRenew.valueOf(
+                        AutoRenew.fromCode(
                                 view.getAutoRenew()),
                         view.getRenewalReminderEnabled(),
-                        view.getStatus(),
+                        SubscriptionStatus.fromCode(
+                                view.getStatus()),
                         view.getRemark(),
                         view.getVersion(),
                         view.getCreateTime(),
@@ -210,14 +216,15 @@ public class MybatisSubscriptionRepository
                 data.getName(),
                 data.getAmount(),
                 data.getCurrency(),
-                BillingCycleType.valueOf(
+                BillingCycleType.fromCode(
                         data.getBillingCycleType()),
                 data.getBillingCycleValue(),
                 data.getCnyReferenceAmount(),
                 data.getNextRenewalDate(),
-                AutoRenew.valueOf(data.getAutoRenew()),
+                AutoRenew.fromCode(data.getAutoRenew()),
                 data.getRenewalReminderEnabled(),
-                data.getStatus(),
+                SubscriptionStatus.fromCode(
+                        data.getStatus()),
                 data.getRemark(),
                 data.getVersion(),
                 data.getCreateTime(),

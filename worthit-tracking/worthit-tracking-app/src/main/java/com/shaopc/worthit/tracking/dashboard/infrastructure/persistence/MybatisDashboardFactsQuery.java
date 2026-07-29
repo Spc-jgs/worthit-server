@@ -4,7 +4,10 @@ import com.shaopc.worthit.tracking.dashboard.application.DashboardFactsQuery;
 import com.shaopc.worthit.tracking.dashboard.application.DashboardItemFact;
 import com.shaopc.worthit.tracking.dashboard.application.DashboardSubscriptionFact;
 import com.shaopc.worthit.tracking.dashboard.application.DashboardWishAggregate;
+import com.shaopc.worthit.tracking.item.domain.ItemLifecycleStatus;
 import com.shaopc.worthit.tracking.subscription.domain.BillingCycleType;
+import com.shaopc.worthit.tracking.subscription.domain.SubscriptionStatus;
+import com.shaopc.worthit.tracking.wish.domain.WishStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -23,7 +26,9 @@ public class MybatisDashboardFactsQuery
     @Override
     public List<DashboardItemFact> findHoldingItems(
             long userId) {
-        return dashboardMapper.selectHoldingItems(userId)
+        return dashboardMapper.selectHoldingItems(
+                        userId,
+                        ItemLifecycleStatus.HOLDING.code())
                 .stream()
                 .map(row -> new DashboardItemFact(
                         row.getPurchasePrice(),
@@ -35,12 +40,14 @@ public class MybatisDashboardFactsQuery
     @Override
     public List<DashboardSubscriptionFact>
             findActiveSubscriptions(long userId) {
-        return dashboardMapper.selectActiveSubscriptions(userId)
+        return dashboardMapper.selectActiveSubscriptions(
+                        userId,
+                        SubscriptionStatus.ACTIVE.code())
                 .stream()
                 .map(row -> new DashboardSubscriptionFact(
                         row.getAmount(),
                         row.getCurrency(),
-                        BillingCycleType.valueOf(
+                        BillingCycleType.fromCode(
                                 row.getBillingCycleType()),
                         row.getBillingCycleValue(),
                         row.getCnyReferenceAmount()))
@@ -52,7 +59,9 @@ public class MybatisDashboardFactsQuery
             long userId) {
         DashboardWishAggregateDO aggregate =
                 dashboardMapper
-                        .selectConsideringWishAggregate(userId);
+                        .selectConsideringWishAggregate(
+                                userId,
+                                WishStatus.CONSIDERING.code());
         return new DashboardWishAggregate(
                 aggregate.getCount(),
                 aggregate.getAmountTotal());
