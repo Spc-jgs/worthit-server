@@ -11,6 +11,10 @@ Tracking 模块中已经确认的字符串弱类型、重复协议字面量和�
 本轮只处理代码规范和类型表达，不拆分现有 Service，不新增模块、依赖、中间件或
 全仓格式化工具。
 
+根据当前任务追加要求，业务 App 的 Application Service 同步统一为
+`*Service` 接口与 `*ServiceImpl` 实现。该结构治理覆盖 Auth、Tracking、Reminder
+三个 Servlet App，避免只在 Tracking 建立一套局部约定。
+
 ## 2. 审查发现
 
 ### 2.1 有限状态以字符串穿透领域和应用边界
@@ -43,6 +47,12 @@ Tracking 模块中已经确认的字符串弱类型、重复协议字面量和�
 
 幂等处理中“一分钟占用期、一天保留期”和 SHA-256 算法仍以内联字面量表达。它们
 不是跨模块契约，但应保留为所属类内的具名常量。
+
+### 2.5 Application Service 缺少接口边界
+
+Auth、Tracking、Reminder 的公开应用服务目前大多是直接由 Controller 注入的具体
+类。接口层因而依赖实现类型，且不同 App 无法通过统一架构门禁识别 Application
+Service 的公开用例边界。
 
 ## 3. 设计
 
@@ -90,6 +100,20 @@ Domain Model 和 Repository 端口使用枚举；DO、Mapper 参数和 HTTP Resp
   单独设计，不能混入纯类型重构。
 - 测试夹具中的数据库原始字符串保留：集成测试需要证明落库 code 未改变。
 
+### 3.4 Application Service 接口与实现
+
+三个业务 App 中位于 `application` 包、以 `Service` 结尾的公开用例类型统一调整为：
+
+- `*Service`：只声明 Controller、Scheduler 或其他应用服务可调用的公开用例；
+- `*ServiceImpl`：承载现有事务、幂等、领域协调和 Repository 调用，并使用
+  `@Service` 注册；
+- 调用方只依赖 `*Service`，单元测试直接构造 `*ServiceImpl` 验证编排；
+- Service 接口和主要方法保留中文 Javadoc，明确用例、副作用和边界。
+
+这项约定不增加一层空转委托，也不改变 Repository、Domain 或 Infrastructure
+职责。通过 Common Test 中的共享 ArchUnit 规则，三个 App 都必须满足 Service 为
+接口、ServiceImpl 实现同包同名 Service 的约束。
+
 ## 4. 兼容性与风险
 
 - API、数据库和 Outbox payload 的 code 保持逐字一致；
@@ -105,9 +129,10 @@ Domain Model 和 Repository 端口使用枚举；DO、Mapper 参数和 HTTP Resp
 缺失时编译 RED。实现后执行：
 
 1. 新增枚举与格式单元测试；
-2. Item、Subscription、Wish、Category、Idempotency、Outbox 相关测试；
-3. Tracking 模块全量 `verify`；
-4. 全仓 `clean verify`；
-5. `git diff --check` 和 GitHub CI。
+2. Application Service 接口/实现 ArchUnit RED 与三个 App 架构测试；
+3. Item、Subscription、Wish、Category、Idempotency、Outbox 相关测试；
+4. Auth、Tracking、Reminder 模块全量 `verify`；
+5. 全仓 `clean verify`；
+6. `git diff --check` 和 GitHub CI。
 
 真实 MySQL 集成测试继续验证持久化 code、恢复、幂等、Outbox 和并发行为未发生变化。
