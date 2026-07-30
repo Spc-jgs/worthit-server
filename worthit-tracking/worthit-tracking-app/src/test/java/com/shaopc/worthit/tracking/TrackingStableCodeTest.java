@@ -3,6 +3,7 @@ package com.shaopc.worthit.tracking;
 import com.shaopc.worthit.tracking.category.domain.CategorySystemCode;
 import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import com.shaopc.worthit.tracking.item.domain.ItemLifecycleStatus;
+import com.shaopc.worthit.tracking.lifecycle.domain.DisposalType;
 import com.shaopc.worthit.tracking.outbox.application.OutboxEventType;
 import com.shaopc.worthit.tracking.outbox.application.OutboxStatus;
 import com.shaopc.worthit.tracking.subscription.domain.AutoRenew;
@@ -23,6 +24,19 @@ class TrackingStableCodeTest {
     void exposesFrozenCodesForDomainStates() {
         assertThat(ItemLifecycleStatus.HOLDING.code())
                 .isEqualTo("HOLDING");
+        assertThat(Arrays.stream(ItemLifecycleStatus.values())
+                        .map(ItemLifecycleStatus::code))
+                .containsExactly(
+                        "HOLDING",
+                        "RETURNED",
+                        "SOLD",
+                        "SCRAPPED");
+        assertThat(Arrays.stream(DisposalType.values())
+                        .map(DisposalType::code))
+                .containsExactly(
+                        "RETURNED",
+                        "SOLD",
+                        "SCRAPPED");
         assertThat(SubscriptionStatus.ACTIVE.code())
                 .isEqualTo("ACTIVE");
         assertThat(SubscriptionStatus.PAUSED.code())
@@ -98,6 +112,8 @@ class TrackingStableCodeTest {
     void restoresEnumsFromPersistentCodes() {
         assertThat(ItemLifecycleStatus.fromCode("HOLDING"))
                 .isSameAs(ItemLifecycleStatus.HOLDING);
+        assertThat(DisposalType.fromCode("SOLD"))
+                .isSameAs(DisposalType.SOLD);
         assertThat(SubscriptionStatus.fromCode("PAUSED"))
                 .isSameAs(SubscriptionStatus.PAUSED);
         assertThat(WishStatus.fromCode("ABANDONED"))
