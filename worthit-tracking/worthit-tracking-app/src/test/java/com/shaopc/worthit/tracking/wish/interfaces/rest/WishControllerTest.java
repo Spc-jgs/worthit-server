@@ -314,6 +314,6 @@ class WishControllerTest {
                 "1000.000000", "1.000", null, true,
                 null, null, false, null, null,
                 "HOLDING", 365, "2.74", "¥2.74/天",
-                false, null, null, null, 1, now, now);
+                false, null, null, null, null, 1, now, now);
     }
 }

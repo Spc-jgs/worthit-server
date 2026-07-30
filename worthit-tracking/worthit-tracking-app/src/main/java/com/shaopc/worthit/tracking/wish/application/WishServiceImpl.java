@@ -583,6 +583,7 @@ public class WishServiceImpl implements WishService {
                         ? null
                         : cost.holdingDailyCost().toPlainString(),
                 cost.holdingDailyCostDisplay(),
+                null,
                 item.version(), item.createTime(),
                 item.updateTime());
     }

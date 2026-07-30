@@ -1,5 +1,8 @@
 package com.shaopc.worthit.tracking.item.domain;
 
+import com.shaopc.worthit.common.core.error.BusinessException;
+import com.shaopc.worthit.tracking.lifecycle.domain.ItemDisposal;
+
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -19,6 +22,31 @@ public final class ItemCostCalculator {
             MathContext.DECIMAL128;
 
     private ItemCostCalculator() {
+    }
+
+    /**
+     * 按物品生命周期选择持有指标截止日。
+     *
+     * <p>持有中物品以当前业务日期为截止日；终态物品必须绑定同一物品、
+     * 同一用户且类型匹配的处置事实，并以处置日期为不可变截止日。</p>
+     *
+     * @param item 物品事实
+     * @param today 当前业务日期
+     * @param disposal nullable 处置事实
+     * @return 成本派生结果
+     */
+    public static ItemCost calculate(
+            Item item,
+            LocalDate today,
+            ItemDisposal disposal) {
+        LocalDate costCutoff = resolveCostCutoff(
+                item, today, disposal);
+        return calculate(
+                item.purchasePrice(),
+                item.expectedYears(),
+                item.residualValue(),
+                item.purchaseDate(),
+                costCutoff);
     }
 
     /**
@@ -118,5 +146,30 @@ public final class ItemCostCalculator {
     private static boolean isTiny(BigDecimal exact) {
         return exact.signum() > 0
                 && exact.compareTo(ONE_CENT) < 0;
+    }
+
+    private static LocalDate resolveCostCutoff(
+            Item item,
+            LocalDate today,
+            ItemDisposal disposal) {
+        if (!item.lifecycleStatus().isTerminal()) {
+            if (disposal != null) {
+                throw stateConflict();
+            }
+            return today;
+        }
+        if (disposal == null
+                || disposal.itemId() != item.id()
+                || disposal.userId() != item.userId()
+                || disposal.type().targetStatus()
+                != item.lifecycleStatus()) {
+            throw stateConflict();
+        }
+        return disposal.disposalDate();
+    }
+
+    private static BusinessException stateConflict() {
+        return new BusinessException(
+                ItemErrorCode.VAL_STATE_CONFLICT);
     }
 }

@@ -1,5 +1,7 @@
 package com.shaopc.worthit.tracking.item.interfaces.rest;
 
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.shaopc.worthit.common.core.pagination.PageQuery;
 import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
@@ -10,12 +12,16 @@ import com.shaopc.worthit.tracking.item.application.DeleteItemResult;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemDisposalDetail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -49,6 +55,14 @@ class ItemControllerTest {
                 .setControllerAdvice(new WorthItRestExceptionHandler(
                         new DefaultErrorHttpStatusResolver(),
                         traceIdGenerator))
+                .setMessageConverters(
+                        new MappingJackson2HttpMessageConverter(
+                                Jackson2ObjectMapperBuilder.json()
+                                        .modules(new JavaTimeModule())
+                                        .featuresToDisable(
+                                                SerializationFeature
+                                                        .WRITE_DATES_AS_TIMESTAMPS)
+                                        .build()))
                 .build();
     }
 
@@ -164,6 +178,28 @@ class ItemControllerTest {
                 .andExpect(jsonPath("$.data.id").value("1938"))
                 .andExpect(jsonPath("$.data.categoryName")
                         .value("未分类"));
+    }
+
+    @Test
+    void returnsTerminalItemDetailWithDisposalFact()
+            throws Exception {
+        when(itemService.detail(1938L))
+                .thenReturn(terminalItemDetail());
+
+        mockMvc.perform(get("/api/v1/items/1938")
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus")
+                        .value("SOLD"))
+                .andExpect(jsonPath("$.data.disposal.type")
+                        .value("SOLD"))
+                .andExpect(jsonPath("$.data.disposal.date")
+                        .value("2026-07-26"))
+                .andExpect(jsonPath("$.data.disposal.saleAmount")
+                        .value("800.000000"))
+                .andExpect(jsonPath("$.data.disposal.netCost")
+                        .value("200.000000"));
     }
 
     @Test
@@ -312,8 +348,44 @@ class ItemControllerTest {
                 null,
                 null,
                 null,
+                null,
                 1L,
                 time,
                 time);
+    }
+
+    private static ItemDetail terminalItemDetail() {
+        ItemDetail holding = itemDetail();
+        return new ItemDetail(
+                holding.id(),
+                holding.name(),
+                holding.categoryId(),
+                holding.categoryName(),
+                holding.purchasePrice(),
+                holding.expectedYears(),
+                holding.residualValue(),
+                holding.residualUnset(),
+                LocalDate.of(2026, 7, 17),
+                holding.warrantyExpireDate(),
+                false,
+                holding.brandModel(),
+                holding.remark(),
+                "SOLD",
+                holding.expectedUseDays(),
+                holding.planDailyCost(),
+                holding.planDailyCostDisplay(),
+                holding.planDailyCostTiny(),
+                10,
+                "100.00",
+                "¥100.00/天",
+                new ItemDisposalDetail(
+                        "SOLD",
+                        LocalDate.of(2026, 7, 26),
+                        "800.000000",
+                        null,
+                        "200.000000"),
+                2L,
+                holding.createTime(),
+                holding.updateTime());
     }
 }

@@ -1,5 +1,7 @@
 package com.shaopc.worthit.tracking.item.interfaces.rest;
 
+import com.shaopc.worthit.tracking.lifecycle.interfaces.rest.ItemDisposalResponse;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -28,6 +30,7 @@ public record ItemDetailResponse(
         Integer holdingDays,
         String holdingDailyCost,
         String holdingDailyCostDisplay,
+        ItemDisposalResponse disposal,
         long version,
         LocalDateTime createTime,
         LocalDateTime updateTime) {

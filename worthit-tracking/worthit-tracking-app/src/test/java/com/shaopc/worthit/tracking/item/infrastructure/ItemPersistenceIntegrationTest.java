@@ -95,6 +95,7 @@ class ItemPersistenceIntegrationTest {
         jdbcTemplate.update("DELETE FROM trk_outbox_event");
         jdbcTemplate.update(
                 "DELETE FROM trk_idempotency_record");
+        jdbcTemplate.update("DELETE FROM trk_item_disposal");
         jdbcTemplate.update("DELETE FROM trk_item");
         jdbcTemplate.update("DELETE FROM trk_category");
     }
@@ -237,6 +238,65 @@ class ItemPersistenceIntegrationTest {
                 .extracting(ItemSummary::id)
                 .containsExactly(visible.id());
         assertThat(missing.getItems()).isEmpty();
+    }
+
+    @Test
+    void terminalDetailKeepsHoldingMetricsFrozenAcrossDays() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "相机",
+                        null,
+                        "1000",
+                        "3",
+                        null,
+                        TODAY.minusDays(9),
+                        null,
+                        false));
+        jdbcTemplate.update(
+                """
+                UPDATE trk_item
+                SET lifecycle_status = 'SOLD',
+                    warranty_reminder_enabled = 0
+                WHERE id = ?
+                """,
+                created.id());
+        jdbcTemplate.update(
+                """
+                INSERT INTO trk_item_disposal (
+                    id, user_id, item_id, disposal_type,
+                    disposal_date, purchase_price_snapshot,
+                    sale_amount, remark, create_time, update_time
+                ) VALUES (?, ?, ?, 'SOLD', ?, ?, ?, ?, ?, ?)
+                """,
+                9001L,
+                USER_ID,
+                created.id(),
+                TODAY,
+                new BigDecimal("1000"),
+                new BigDecimal("700"),
+                "升级设备",
+                TODAY.atTime(12, 0),
+                TODAY.atTime(12, 0));
+
+        ItemDetail disposalDay = itemService.detail(created.id());
+        CURRENT_INSTANT.set(
+                Instant.parse("2026-08-26T04:00:00Z"));
+        ItemDetail oneMonthLater =
+                itemService.detail(created.id());
+
+        assertThat(disposalDay.holdingDays()).isEqualTo(10);
+        assertThat(oneMonthLater.holdingDays()).isEqualTo(10);
+        assertThat(oneMonthLater.holdingDailyCost())
+                .isEqualTo("100.00");
+        assertThat(oneMonthLater.disposal().type())
+                .isEqualTo("SOLD");
+        assertThat(oneMonthLater.disposal().date())
+                .isEqualTo(TODAY);
+        assertThat(oneMonthLater.disposal().saleAmount())
+                .isEqualTo("700.000000");
+        assertThat(oneMonthLater.disposal().netCost())
+                .isEqualTo("300.000000");
     }
 
     @Test
