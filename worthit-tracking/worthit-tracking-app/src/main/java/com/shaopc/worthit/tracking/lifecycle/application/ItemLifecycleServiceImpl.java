@@ -24,6 +24,8 @@ import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,6 +39,8 @@ public class ItemLifecycleServiceImpl
         implements ItemLifecycleService {
 
     private static final int MAX_REMARK_LENGTH = 512;
+    private static final BigDecimal MAX_MONEY =
+            new BigDecimal("999999999999.999999");
 
     private final ItemRepository itemRepository;
     private final ItemDisposalRepository disposalRepository;
@@ -78,6 +82,45 @@ public class ItemLifecycleServiceImpl
                         DisposalType.RETURNED,
                         normalized.returnDate(),
                         null,
+                        normalized.remark(),
+                        today));
+    }
+
+    @Override
+    public ItemLifecycleResult sellItem(
+            long itemId,
+            String idempotencyKey,
+            SellItemCommand command) {
+        SellItemCommand normalized = normalize(command);
+        LocalDate today = LocalDate.now(trackingClock);
+        validate(
+                normalized.version(),
+                normalized.saleDate(),
+                normalized.remark(),
+                today);
+        validateSaleAmount(normalized.saleAmount());
+        long userId = currentUserProvider
+                .currentUser()
+                .userId();
+        DisposeDigest digest = new DisposeDigest(
+                itemId,
+                normalized.version(),
+                normalized.saleDate(),
+                normalized.saleAmount(),
+                normalized.remark());
+        return idempotencyCoordinator.execute(
+                userId,
+                TrackingOperation.ITEM_SELL,
+                idempotencyKey,
+                requestDigest.hash(digest),
+                ItemLifecycleResult.class,
+                () -> dispose(
+                        userId,
+                        itemId,
+                        normalized.version(),
+                        DisposalType.SOLD,
+                        normalized.saleDate(),
+                        normalized.saleAmount(),
                         normalized.remark(),
                         today));
     }
@@ -174,6 +217,21 @@ public class ItemLifecycleServiceImpl
                 normalizeRemark(command.remark()));
     }
 
+    private static SellItemCommand normalize(
+            SellItemCommand command) {
+        if (command == null) {
+            throw invalid();
+        }
+        BigDecimal amount = command.saleAmount();
+        validateSaleAmount(amount);
+        return new SellItemCommand(
+                command.version(),
+                command.saleDate(),
+                amount.setScale(
+                        6, RoundingMode.UNNECESSARY),
+                normalizeRemark(command.remark()));
+    }
+
     private static void validate(
             long version,
             LocalDate disposalDate,
@@ -194,6 +252,16 @@ public class ItemLifecycleServiceImpl
         }
         String normalized = remark.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static void validateSaleAmount(
+            BigDecimal amount) {
+        if (amount == null
+                || amount.signum() < 0
+                || amount.scale() > 6
+                || amount.compareTo(MAX_MONEY) > 0) {
+            throw invalid();
+        }
     }
 
     private static BusinessException invalid() {

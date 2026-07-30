@@ -15,6 +15,7 @@ import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
 import com.shaopc.worthit.tracking.lifecycle.application.ReturnItemCommand;
+import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -402,6 +403,53 @@ class ItemPersistenceIntegrationTest {
                 new ReturnItemCommand(
                         created.version(), TODAY, null));
 
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isFalse();
+    }
+
+    @Test
+    void sellsItemAndFreezesSaleSnapshot() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "相机",
+                        null,
+                        "1000",
+                        "3",
+                        null,
+                        TODAY.minusDays(9),
+                        TODAY.plusDays(30),
+                        true));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+
+        ItemLifecycleResult sold = lifecycleService.sellItem(
+                created.id(),
+                UUID.randomUUID().toString(),
+                new SellItemCommand(
+                        created.version(),
+                        TODAY,
+                        new BigDecimal("800"),
+                        "升级设备"));
+
+        assertThat(sold.lifecycleStatus()).isEqualTo("SOLD");
+        assertThat(sold.disposal().saleAmount())
+                .isEqualTo("800.000000");
+        assertThat(sold.disposal().netCost())
+                .isEqualTo("200.000000");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT purchase_price_snapshot
+                FROM trk_item_disposal
+                WHERE item_id = ?
+                """,
+                BigDecimal.class,
+                created.id())).isEqualByComparingTo("1000");
         assertThat(jdbcTemplate.queryForObject(
                 """
                 SELECT warranty_reminder_enabled

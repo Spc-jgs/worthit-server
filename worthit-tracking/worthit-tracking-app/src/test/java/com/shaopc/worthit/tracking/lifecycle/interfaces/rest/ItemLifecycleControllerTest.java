@@ -1,19 +1,21 @@
 package com.shaopc.worthit.tracking.lifecycle.interfaces.rest;
 
+import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.webmvc.error.DefaultErrorHttpStatusResolver;
 import com.shaopc.worthit.common.webmvc.error.WorthItRestExceptionHandler;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyErrorCode;
-import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
+import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -130,6 +132,60 @@ class ItemLifecycleControllerTest {
                         .value("IDEM_IN_PROGRESS"));
     }
 
+    @Test
+    void sellsItemWithStringDecimalContract()
+            throws Exception {
+        when(lifecycleService.sellItem(
+                eq(1938L), eq(IDEMPOTENCY_KEY), any()))
+                .thenReturn(sold());
+
+        mockMvc.perform(post("/api/v1/items/1938/sell")
+                        .header(
+                                "Idempotency-Key",
+                                IDEMPOTENCY_KEY)
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID,
+                                TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "version":1,
+                                  "saleDate":"2026-07-30",
+                                  "saleAmount":"800.00"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus")
+                        .value("SOLD"))
+                .andExpect(jsonPath("$.data.disposal.saleAmount")
+                        .value("800.000000"))
+                .andExpect(jsonPath("$.data.disposal.netCost")
+                        .value("200.000000"));
+    }
+
+    @Test
+    void rejectsInvalidSaleAmountBeforeUseCase()
+            throws Exception {
+        mockMvc.perform(post("/api/v1/items/1938/sell")
+                        .header(
+                                "Idempotency-Key",
+                                IDEMPOTENCY_KEY)
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID,
+                                TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "version":1,
+                                  "saleDate":"2026-07-30",
+                                  "saleAmount":"1.0000001"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VAL_INVALID_ARGUMENT"));
+    }
+
     private static ItemLifecycleResult returned() {
         LocalDateTime now =
                 LocalDateTime.of(2026, 7, 30, 10, 0);
@@ -143,6 +199,25 @@ class ItemLifecycleControllerTest {
                         null,
                         "尺寸不合适",
                         null),
+                2L,
+                now);
+    }
+
+    private static ItemLifecycleResult sold() {
+        LocalDateTime now =
+                LocalDateTime.of(2026, 7, 30, 10, 0);
+        return new ItemLifecycleResult(
+                1938L,
+                "SOLD",
+                new com.shaopc.worthit.tracking.lifecycle
+                        .application.ItemDisposalDetail(
+                        "SOLD",
+                        LocalDate.of(2026, 7, 30),
+                        new BigDecimal("800.000000")
+                                .toPlainString(),
+                        null,
+                        new BigDecimal("200.000000")
+                                .toPlainString()),
                 2L,
                 now);
     }

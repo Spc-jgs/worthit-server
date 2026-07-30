@@ -8,6 +8,7 @@ import com.shaopc.worthit.tracking.lifecycle.application.ItemDisposalDetail;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
 import com.shaopc.worthit.tracking.lifecycle.application.ReturnItemCommand;
+import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.math.BigDecimal;
 
 /**
  * 物品生命周期公网写接口。
@@ -61,6 +64,37 @@ public class ItemLifecycleController {
                         new ReturnItemCommand(
                                 request.version(),
                                 request.returnDate(),
+                                request.remark()));
+        return ApiResponse.success(toResponse(result), traceId);
+    }
+
+    /**
+     * 卖出处置。
+     */
+    @PostMapping("/{id}/sell")
+    @Operation(summary = "卖出")
+    public ApiResponse<ItemLifecycleResponse> sellItem(
+            @Positive @PathVariable("id") long itemId,
+            @RequestHeader(
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
+                    required = false)
+            @NotBlank(message = "幂等键不能为空")
+            @Pattern(
+                    regexp = UuidFormat.PATTERN,
+                    message = "幂等键必须是UUID")
+            String idempotencyKey,
+            @Valid @RequestBody SellItemRequest request,
+            @RequestAttribute(SecurityHeaderNames.TRACE_ID)
+            String traceId) {
+        ItemLifecycleResult result =
+                lifecycleService.sellItem(
+                        itemId,
+                        idempotencyKey,
+                        new SellItemCommand(
+                                request.version(),
+                                request.saleDate(),
+                                new BigDecimal(
+                                        request.saleAmount()),
                                 request.remark()));
         return ApiResponse.success(toResponse(result), traceId);
     }

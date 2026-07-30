@@ -12,4 +12,12 @@ public interface ItemLifecycleService {
             long itemId,
             String idempotencyKey,
             ReturnItemCommand command);
+
+    /**
+     * 把持有中物品卖出。
+     */
+    ItemLifecycleResult sellItem(
+            long itemId,
+            String idempotencyKey,
+            SellItemCommand command);
 }
