@@ -13,15 +13,19 @@ class IdempotencyRecordStatusTest {
                 .isEqualTo("PROCESSING");
         assertThat(IdempotencyRecordStatus.SUCCEEDED.code())
                 .isEqualTo("SUCCEEDED");
+        assertThat(IdempotencyRecordStatus.FAILED.code())
+                .isEqualTo("FAILED");
         assertThat(IdempotencyRecordStatus.fromCode("PROCESSING"))
                 .isSameAs(IdempotencyRecordStatus.PROCESSING);
+        assertThat(IdempotencyRecordStatus.fromCode("FAILED"))
+                .isSameAs(IdempotencyRecordStatus.FAILED);
     }
 
     @Test
     void rejectsUnknownPersistentCode() {
         assertThatThrownBy(() ->
-                IdempotencyRecordStatus.fromCode("FAILED"))
+                IdempotencyRecordStatus.fromCode("UNKNOWN"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("FAILED");
+                .hasMessageContaining("UNKNOWN");
     }
 }

@@ -6,7 +6,13 @@ package com.shaopc.worthit.tracking.item.domain;
 public enum ItemLifecycleStatus {
 
     /** 持有中。 */
-    HOLDING("HOLDING");
+    HOLDING("HOLDING"),
+    /** 已退货。 */
+    RETURNED("RETURNED"),
+    /** 已卖出。 */
+    SOLD("SOLD"),
+    /** 已报废。 */
+    SCRAPPED("SCRAPPED");
 
     private final String code;
 
@@ -19,6 +25,13 @@ public enum ItemLifecycleStatus {
      */
     public String code() {
         return code;
+    }
+
+    /**
+     * 判断是否已进入不可逆的处置终态。
+     */
+    public boolean isTerminal() {
+        return this != HOLDING;
     }
 
     /**

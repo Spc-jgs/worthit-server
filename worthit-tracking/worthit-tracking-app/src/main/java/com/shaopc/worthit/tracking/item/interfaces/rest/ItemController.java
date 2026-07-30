@@ -10,6 +10,8 @@ import com.shaopc.worthit.tracking.item.application.DeleteItemResult;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemDisposalDetail;
+import com.shaopc.worthit.tracking.lifecycle.interfaces.rest.ItemDisposalResponse;
 import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
 import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
 import com.shaopc.worthit.tracking.interfaces.rest.TrackingHeaderNames;
@@ -285,9 +287,23 @@ public class ItemController {
                 detail.holdingDays(),
                 detail.holdingDailyCost(),
                 detail.holdingDailyCostDisplay(),
+                toDisposalResponse(detail.disposal()),
                 detail.version(),
                 detail.createTime(),
                 detail.updateTime());
+    }
+
+    private static ItemDisposalResponse toDisposalResponse(
+            ItemDisposalDetail disposal) {
+        if (disposal == null) {
+            return null;
+        }
+        return new ItemDisposalResponse(
+                disposal.type(),
+                disposal.date(),
+                disposal.saleAmount(),
+                disposal.remark(),
+                disposal.netCost());
     }
 
     private ItemSummaryResponse toSummaryResponse(

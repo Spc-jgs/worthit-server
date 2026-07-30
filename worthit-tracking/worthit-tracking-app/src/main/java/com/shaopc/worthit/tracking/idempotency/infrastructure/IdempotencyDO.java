@@ -21,6 +21,8 @@ public class IdempotencyDO {
     private String requestHash;
     private String responseJson;
     private String status;
+    private String errorCode;
+    private String errorMessage;
     private LocalDateTime processingExpireAt;
     private LocalDateTime expiresAt;
     private LocalDateTime createTime;

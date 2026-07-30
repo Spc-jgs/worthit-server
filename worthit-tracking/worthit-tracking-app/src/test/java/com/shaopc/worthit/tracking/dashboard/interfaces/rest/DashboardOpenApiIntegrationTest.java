@@ -105,6 +105,33 @@ class DashboardOpenApiIntegrationTest {
         assertThat(properties.has("pendingCount")).isFalse();
     }
 
+    @Test
+    void publishesLifecyclePathsAndSchemasOnlyInPublicGroup()
+            throws Exception {
+        JsonNode publicDocument =
+                getOpenApiDocument("/v3/api-docs/public");
+        JsonNode internalDocument =
+                getOpenApiDocument("/v3/api-docs/internal");
+
+        for (String action :
+                new String[]{"return", "sell", "scrap"}) {
+            String path = "/api/v1/items/{id}/" + action;
+            assertThat(publicDocument.path("paths").has(path))
+                    .isTrue();
+            assertThat(internalDocument.path("paths").has(path))
+                    .isFalse();
+        }
+        JsonNode schemas = publicDocument
+                .path("components")
+                .path("schemas");
+        assertThat(schemas.has("ReturnItemRequest")).isTrue();
+        assertThat(schemas.has("SellItemRequest")).isTrue();
+        assertThat(schemas.has("ScrapItemRequest")).isTrue();
+        assertThat(schemas.has("ItemLifecycleResponse"))
+                .isTrue();
+        assertThat(schemas.has("ItemDisposalResponse")).isTrue();
+    }
+
     private JsonNode getOpenApiDocument(String path)
             throws Exception {
         String content = mockMvc.perform(get(path))

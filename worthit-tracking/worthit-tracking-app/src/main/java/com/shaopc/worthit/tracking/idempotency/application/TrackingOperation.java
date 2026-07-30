@@ -13,6 +13,14 @@ public enum TrackingOperation {
     ITEM_DELETE("ITEM_DELETE"),
     /** 恢复物品。 */
     ITEM_RESTORE("ITEM_RESTORE"),
+    /** 退货处置。 */
+    ITEM_RETURN("ITEM_RETURN"),
+    /** 卖出处置。 */
+    ITEM_SELL("ITEM_SELL"),
+    /** 报废处置。 */
+    ITEM_SCRAP("ITEM_SCRAP"),
+    /** 建立物品替换关系。 */
+    ITEM_REPLACE("ITEM_REPLACE"),
     /** 创建订阅。 */
     SUB_CREATE("SUB_CREATE"),
     /** 更新订阅。 */

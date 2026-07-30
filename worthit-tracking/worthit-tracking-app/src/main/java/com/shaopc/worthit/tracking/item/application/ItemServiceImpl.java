@@ -25,6 +25,9 @@ import com.shaopc.worthit.tracking.item.domain.ItemErrorCode;
 import com.shaopc.worthit.tracking.item.domain.ItemLifecycleStatus;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemDisposalDetail;
+import com.shaopc.worthit.tracking.lifecycle.domain.ItemDisposal;
+import com.shaopc.worthit.tracking.lifecycle.domain.ItemDisposalRepository;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
 import com.shaopc.worthit.tracking.restore.application.RestoreClaimCoordinator;
 import com.shaopc.worthit.tracking.restore.application.RestoreWindowPolicy;
@@ -49,6 +52,7 @@ import java.util.Objects;
 public class ItemServiceImpl implements ItemService {
 
     private final ItemRepository itemRepository;
+    private final ItemDisposalRepository itemDisposalRepository;
     private final CategoryReferenceResolver categoryReferenceResolver;
     private final IdempotencyStore idempotencyStore;
     private final RequestDigest requestDigest;
@@ -201,6 +205,10 @@ public class ItemServiceImpl implements ItemService {
                 .orElseThrow(() -> new BusinessException(
                         CommonWebErrorCode.RES_NOT_FOUND));
         if (existing.version() != normalized.version()) {
+            throw stateConflict();
+        }
+        if (existing.lifecycleStatus().isTerminal()
+                && normalized.warrantyReminderEnabled()) {
             throw stateConflict();
         }
 
@@ -439,12 +447,15 @@ public class ItemServiceImpl implements ItemService {
     private ItemDetail toDetail(
             ItemWithCategory view, LocalDate today) {
         Item item = view.item();
+        ItemDisposal disposal = item.lifecycleStatus().isTerminal()
+                ? itemDisposalRepository
+                        .findByItemIdAndUserId(
+                                item.id(), item.userId())
+                        .orElseThrow(
+                                ItemServiceImpl::stateConflict)
+                : null;
         ItemCost cost = ItemCostCalculator.calculate(
-                item.purchasePrice(),
-                item.expectedYears(),
-                item.residualValue(),
-                item.purchaseDate(),
-                today);
+                item, today, disposal);
         return new ItemDetail(
                 item.id(),
                 item.name(),
@@ -467,6 +478,9 @@ public class ItemServiceImpl implements ItemService {
                 cost.holdingDays(),
                 plain(cost.holdingDailyCost()),
                 cost.holdingDailyCostDisplay(),
+                disposal == null
+                        ? null
+                        : ItemDisposalDetail.from(disposal),
                 item.version(),
                 item.createTime(),
                 item.updateTime());

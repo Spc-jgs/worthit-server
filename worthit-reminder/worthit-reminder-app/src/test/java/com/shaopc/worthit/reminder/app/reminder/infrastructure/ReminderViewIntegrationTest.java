@@ -320,6 +320,39 @@ class ReminderViewIntegrationTest {
                 .isEqualTo("PROCESSED");
     }
 
+    @Test
+    void disposalCancelsFuturePendingAndCreatesNoReplacement() {
+        long bindingId = insertBinding(
+                USER_ID, "ITEM", "WARRANTY", 1L);
+        long reminderId = insertInstance(
+                bindingId,
+                USER_ID,
+                "PENDING",
+                now().plusDays(7),
+                null);
+
+        reconcileService.reconcile(
+                UUID.randomUUID().toString(),
+                command(
+                        2L,
+                        ReminderOperationType.DISPOSE_ITEM,
+                        null,
+                        null,
+                        false));
+
+        assertThat(status(reminderId))
+                .isEqualTo("CANCELED");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM rem_instance
+                WHERE binding_id = ?
+                  AND status = 'PENDING'
+                """,
+                Integer.class,
+                bindingId)).isZero();
+    }
+
     private long insertReminder(
             long userId,
             String businessType,

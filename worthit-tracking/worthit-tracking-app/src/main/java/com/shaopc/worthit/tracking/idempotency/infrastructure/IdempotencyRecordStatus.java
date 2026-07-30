@@ -8,7 +8,9 @@ enum IdempotencyRecordStatus {
     /** 请求处理中。 */
     PROCESSING("PROCESSING"),
     /** 请求已成功，可重放响应。 */
-    SUCCEEDED("SUCCEEDED");
+    SUCCEEDED("SUCCEEDED"),
+    /** 终结性业务失败，可重放安全错误。 */
+    FAILED("FAILED");
 
     private final String code;
 

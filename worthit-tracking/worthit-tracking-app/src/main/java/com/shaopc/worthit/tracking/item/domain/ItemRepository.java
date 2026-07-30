@@ -50,6 +50,18 @@ public interface ItemRepository {
     boolean update(Item item, long expectedVersion);
 
     /**
+     * 按版本和持有状态原子进入生命周期终态，同时关闭保修提醒。
+     *
+     * @return 条件更新恰好一行时为 true
+     */
+    boolean dispose(
+            long itemId,
+            long userId,
+            long expectedVersion,
+            ItemLifecycleStatus targetStatus,
+            LocalDateTime now);
+
+    /**
      * 按版本逻辑删除用户物品。
      *
      * @return 条件更新成功时为 true

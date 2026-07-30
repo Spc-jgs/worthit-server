@@ -10,6 +10,8 @@ import com.shaopc.worthit.tracking.interfaces.rest.TrackingHeaderNames;
 import com.shaopc.worthit.tracking.interfaces.rest.UuidFormat;
 import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.interfaces.rest.ItemDetailResponse;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemDisposalDetail;
+import com.shaopc.worthit.tracking.lifecycle.interfaces.rest.ItemDisposalResponse;
 import com.shaopc.worthit.tracking.wish.application.CreateWishCommand;
 import com.shaopc.worthit.tracking.wish.application.DeleteWishResult;
 import com.shaopc.worthit.tracking.wish.application.UpdateWishCommand;
@@ -318,7 +320,21 @@ public class WishController {
                 detail.holdingDays(),
                 detail.holdingDailyCost(),
                 detail.holdingDailyCostDisplay(),
+                toDisposalResponse(detail.disposal()),
                 detail.version(), detail.createTime(),
                 detail.updateTime());
+    }
+
+    private static ItemDisposalResponse toDisposalResponse(
+            ItemDisposalDetail disposal) {
+        if (disposal == null) {
+            return null;
+        }
+        return new ItemDisposalResponse(
+                disposal.type(),
+                disposal.date(),
+                disposal.saleAmount(),
+                disposal.remark(),
+                disposal.netCost());
     }
 }

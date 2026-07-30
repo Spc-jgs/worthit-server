@@ -1,11 +1,16 @@
 package com.shaopc.worthit.tracking.item.domain;
 
+import com.shaopc.worthit.common.core.error.BusinessException;
+import com.shaopc.worthit.tracking.lifecycle.domain.DisposalType;
+import com.shaopc.worthit.tracking.lifecycle.domain.ItemDisposal;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ItemCostCalculatorTest {
 
@@ -112,5 +117,117 @@ class ItemCostCalculatorTest {
         assertThat(cost.holdingDays()).isEqualTo(10);
         assertThat(cost.holdingDailyCost()).isEqualByComparingTo("10.00");
         assertThat(cost.holdingDailyCostDisplay()).isEqualTo("¥10.00/天");
+    }
+
+    @Test
+    void holdingItemUsesTodayAsInclusiveCostCutoff() {
+        ItemCost cost = ItemCostCalculator.calculate(
+                item(ItemLifecycleStatus.HOLDING),
+                TODAY,
+                null);
+
+        assertThat(cost.holdingDays()).isEqualTo(10);
+        assertThat(cost.holdingDailyCost())
+                .isEqualByComparingTo("10.00");
+    }
+
+    @Test
+    void terminalItemsUseMatchingDisposalDateAsCostCutoff() {
+        for (DisposalType type : DisposalType.values()) {
+            ItemCost cost = ItemCostCalculator.calculate(
+                    item(type.targetStatus()),
+                    TODAY.plusDays(30),
+                    disposal(type, TODAY.minusDays(4)));
+
+            assertThat(cost.holdingDays()).isEqualTo(6);
+            assertThat(cost.holdingDailyCost())
+                    .isEqualByComparingTo("16.67");
+        }
+    }
+
+    @Test
+    void terminalItemDisposedOnPurchaseDateHasOneHoldingDay() {
+        ItemCost cost = ItemCostCalculator.calculate(
+                item(ItemLifecycleStatus.RETURNED),
+                TODAY.plusDays(30),
+                disposal(
+                        DisposalType.RETURNED,
+                        TODAY.minusDays(9)));
+
+        assertThat(cost.holdingDays()).isEqualTo(1);
+        assertThat(cost.holdingDailyCost())
+                .isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void rejectsMissingOrMismatchedTerminalDisposalFact() {
+        assertThatThrownBy(() -> ItemCostCalculator.calculate(
+                item(ItemLifecycleStatus.SOLD),
+                TODAY,
+                null))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("VAL_STATE_CONFLICT"));
+
+        assertThatThrownBy(() -> ItemCostCalculator.calculate(
+                item(ItemLifecycleStatus.SOLD),
+                TODAY,
+                disposal(DisposalType.RETURNED, TODAY)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("VAL_STATE_CONFLICT"));
+    }
+
+    @Test
+    void rejectsDisposalFactForHoldingItem() {
+        assertThatThrownBy(() -> ItemCostCalculator.calculate(
+                item(ItemLifecycleStatus.HOLDING),
+                TODAY,
+                disposal(DisposalType.RETURNED, TODAY)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("VAL_STATE_CONFLICT"));
+    }
+
+    private static Item item(ItemLifecycleStatus status) {
+        LocalDateTime time = TODAY.atStartOfDay();
+        return new Item(
+                1L,
+                1001L,
+                10L,
+                "测试物品",
+                new BigDecimal("100"),
+                BigDecimal.ONE,
+                null,
+                TODAY.minusDays(9),
+                null,
+                false,
+                null,
+                null,
+                status,
+                1L,
+                time,
+                time);
+    }
+
+    private static ItemDisposal disposal(
+            DisposalType type, LocalDate disposalDate) {
+        LocalDateTime time = disposalDate.atStartOfDay();
+        return new ItemDisposal(
+                2L,
+                1001L,
+                1L,
+                type,
+                disposalDate,
+                new BigDecimal("100"),
+                type == DisposalType.SOLD
+                        ? new BigDecimal("80")
+                        : null,
+                null,
+                time,
+                time);
     }
 }

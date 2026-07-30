@@ -162,6 +162,29 @@ public interface ItemMapper extends BaseMapper<ItemDO> {
             @Param("expectedVersion") long expectedVersion);
 
     /**
+     * 原子处置持有中物品并关闭保修提醒。
+     */
+    @Update("""
+            UPDATE trk_item
+            SET lifecycle_status = #{targetStatus},
+                warranty_reminder_enabled = 0,
+                version = version + 1,
+                update_by = #{userId},
+                update_time = #{now}
+            WHERE id = #{itemId}
+              AND user_id = #{userId}
+              AND version = #{expectedVersion}
+              AND lifecycle_status = 'HOLDING'
+              AND del_flag = 0
+            """)
+    int disposeByVersion(
+            @Param("itemId") long itemId,
+            @Param("userId") long userId,
+            @Param("expectedVersion") long expectedVersion,
+            @Param("targetStatus") String targetStatus,
+            @Param("now") LocalDateTime now);
+
+    /**
      * 按版本逻辑删除有效物品。
      */
     @Update("""
