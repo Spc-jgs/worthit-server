@@ -16,6 +16,7 @@ import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
 import com.shaopc.worthit.tracking.lifecycle.application.ReturnItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
+import com.shaopc.worthit.tracking.lifecycle.application.ScrapItemCommand;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -450,6 +451,44 @@ class ItemPersistenceIntegrationTest {
                 """,
                 BigDecimal.class,
                 created.id())).isEqualByComparingTo("1000");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isFalse();
+    }
+
+    @Test
+    void scrapsItemWithoutSaleAmountAndKeepsReminderOff() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "旧键盘",
+                        null,
+                        "300",
+                        "2",
+                        null,
+                        TODAY.minusDays(30),
+                        null,
+                        false));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+
+        ItemLifecycleResult scrapped =
+                lifecycleService.scrapItem(
+                        created.id(),
+                        UUID.randomUUID().toString(),
+                        new ScrapItemCommand(
+                                created.version(),
+                                TODAY,
+                                "无法维修"));
+
+        assertThat(scrapped.lifecycleStatus())
+                .isEqualTo("SCRAPPED");
+        assertThat(scrapped.disposal().saleAmount()).isNull();
+        assertThat(scrapped.disposal().netCost()).isNull();
         assertThat(jdbcTemplate.queryForObject(
                 """
                 SELECT warranty_reminder_enabled

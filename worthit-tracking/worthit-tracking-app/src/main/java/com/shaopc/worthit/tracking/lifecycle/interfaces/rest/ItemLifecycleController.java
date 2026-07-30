@@ -9,6 +9,7 @@ import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
 import com.shaopc.worthit.tracking.lifecycle.application.ReturnItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
+import com.shaopc.worthit.tracking.lifecycle.application.ScrapItemCommand;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -95,6 +96,35 @@ public class ItemLifecycleController {
                                 request.saleDate(),
                                 new BigDecimal(
                                         request.saleAmount()),
+                                request.remark()));
+        return ApiResponse.success(toResponse(result), traceId);
+    }
+
+    /**
+     * 报废处置。
+     */
+    @PostMapping("/{id}/scrap")
+    @Operation(summary = "报废")
+    public ApiResponse<ItemLifecycleResponse> scrapItem(
+            @Positive @PathVariable("id") long itemId,
+            @RequestHeader(
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
+                    required = false)
+            @NotBlank(message = "幂等键不能为空")
+            @Pattern(
+                    regexp = UuidFormat.PATTERN,
+                    message = "幂等键必须是UUID")
+            String idempotencyKey,
+            @Valid @RequestBody ScrapItemRequest request,
+            @RequestAttribute(SecurityHeaderNames.TRACE_ID)
+            String traceId) {
+        ItemLifecycleResult result =
+                lifecycleService.scrapItem(
+                        itemId,
+                        idempotencyKey,
+                        new ScrapItemCommand(
+                                request.version(),
+                                request.scrapDate(),
                                 request.remark()));
         return ApiResponse.success(toResponse(result), traceId);
     }

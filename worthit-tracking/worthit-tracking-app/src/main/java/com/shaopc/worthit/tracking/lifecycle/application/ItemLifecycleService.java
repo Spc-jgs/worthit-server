@@ -20,4 +20,12 @@ public interface ItemLifecycleService {
             long itemId,
             String idempotencyKey,
             SellItemCommand command);
+
+    /**
+     * 把持有中物品报废。
+     */
+    ItemLifecycleResult scrapItem(
+            long itemId,
+            String idempotencyKey,
+            ScrapItemCommand command);
 }

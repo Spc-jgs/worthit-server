@@ -9,6 +9,7 @@ import com.shaopc.worthit.tracking.idempotency.application.IdempotencyErrorCode;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
 import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
+import com.shaopc.worthit.tracking.lifecycle.application.ScrapItemCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -186,6 +187,37 @@ class ItemLifecycleControllerTest {
                         .value("VAL_INVALID_ARGUMENT"));
     }
 
+    @Test
+    void scrapsItemThroughFrozenContract()
+            throws Exception {
+        when(lifecycleService.scrapItem(
+                eq(1938L), eq(IDEMPOTENCY_KEY), any()))
+                .thenReturn(scrapped());
+
+        mockMvc.perform(post("/api/v1/items/1938/scrap")
+                        .header(
+                                "Idempotency-Key",
+                                IDEMPOTENCY_KEY)
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID,
+                                TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "version":1,
+                                  "scrapDate":"2026-07-30",
+                                  "remark":"无法维修"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus")
+                        .value("SCRAPPED"))
+                .andExpect(jsonPath("$.data.disposal.type")
+                        .value("SCRAPPED"))
+                .andExpect(jsonPath("$.data.disposal.netCost")
+                        .doesNotExist());
+    }
+
     private static ItemLifecycleResult returned() {
         LocalDateTime now =
                 LocalDateTime.of(2026, 7, 30, 10, 0);
@@ -218,6 +250,23 @@ class ItemLifecycleControllerTest {
                         null,
                         new BigDecimal("200.000000")
                                 .toPlainString()),
+                2L,
+                now);
+    }
+
+    private static ItemLifecycleResult scrapped() {
+        LocalDateTime now =
+                LocalDateTime.of(2026, 7, 30, 10, 0);
+        return new ItemLifecycleResult(
+                1938L,
+                "SCRAPPED",
+                new com.shaopc.worthit.tracking.lifecycle
+                        .application.ItemDisposalDetail(
+                        "SCRAPPED",
+                        LocalDate.of(2026, 7, 30),
+                        null,
+                        "无法维修",
+                        null),
                 2L,
                 now);
     }

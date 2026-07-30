@@ -125,6 +125,41 @@ public class ItemLifecycleServiceImpl
                         today));
     }
 
+    @Override
+    public ItemLifecycleResult scrapItem(
+            long itemId,
+            String idempotencyKey,
+            ScrapItemCommand command) {
+        ScrapItemCommand normalized = normalize(command);
+        LocalDate today = LocalDate.now(trackingClock);
+        validate(normalized.version(), normalized.scrapDate(),
+                normalized.remark(), today);
+        long userId = currentUserProvider
+                .currentUser()
+                .userId();
+        DisposeDigest digest = new DisposeDigest(
+                itemId,
+                normalized.version(),
+                normalized.scrapDate(),
+                null,
+                normalized.remark());
+        return idempotencyCoordinator.execute(
+                userId,
+                TrackingOperation.ITEM_SCRAP,
+                idempotencyKey,
+                requestDigest.hash(digest),
+                ItemLifecycleResult.class,
+                () -> dispose(
+                        userId,
+                        itemId,
+                        normalized.version(),
+                        DisposalType.SCRAPPED,
+                        normalized.scrapDate(),
+                        null,
+                        normalized.remark(),
+                        today));
+    }
+
     private ItemLifecycleResult dispose(
             long userId,
             long itemId,
@@ -229,6 +264,17 @@ public class ItemLifecycleServiceImpl
                 command.saleDate(),
                 amount.setScale(
                         6, RoundingMode.UNNECESSARY),
+                normalizeRemark(command.remark()));
+    }
+
+    private static ScrapItemCommand normalize(
+            ScrapItemCommand command) {
+        if (command == null) {
+            throw invalid();
+        }
+        return new ScrapItemCommand(
+                command.version(),
+                command.scrapDate(),
                 normalizeRemark(command.remark()));
     }
 
