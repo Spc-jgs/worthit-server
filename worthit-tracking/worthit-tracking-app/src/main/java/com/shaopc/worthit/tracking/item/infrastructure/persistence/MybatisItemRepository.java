@@ -80,6 +80,21 @@ public class MybatisItemRepository implements ItemRepository {
     }
 
     @Override
+    public boolean dispose(
+            long itemId,
+            long userId,
+            long expectedVersion,
+            ItemLifecycleStatus targetStatus,
+            LocalDateTime now) {
+        return itemMapper.disposeByVersion(
+                itemId,
+                userId,
+                expectedVersion,
+                targetStatus.code(),
+                now) == 1;
+    }
+
+    @Override
     public boolean delete(
             long itemId,
             long userId,

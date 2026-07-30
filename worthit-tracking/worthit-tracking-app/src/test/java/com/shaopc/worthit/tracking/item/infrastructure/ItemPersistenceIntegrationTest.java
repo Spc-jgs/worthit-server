@@ -12,6 +12,9 @@ import com.shaopc.worthit.tracking.item.application.ItemDetail;
 import com.shaopc.worthit.tracking.item.application.ItemService;
 import com.shaopc.worthit.tracking.item.application.ItemSummary;
 import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
+import com.shaopc.worthit.tracking.lifecycle.application.ReturnItemCommand;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,6 +71,9 @@ class ItemPersistenceIntegrationTest {
 
     @Autowired
     private ItemService itemService;
+
+    @Autowired
+    private ItemLifecycleService lifecycleService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -297,6 +303,216 @@ class ItemPersistenceIntegrationTest {
                 .isEqualTo("700.000000");
         assertThat(oneMonthLater.disposal().netCost())
                 .isEqualTo("300.000000");
+    }
+
+    @Test
+    void returnsItemAndClosesWarrantyReminderAtomically()
+            throws Exception {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "相机",
+                        null,
+                        "1000",
+                        "3",
+                        null,
+                        TODAY.minusDays(9),
+                        TODAY.plusDays(30),
+                        true));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+        String key = UUID.randomUUID().toString();
+        ReturnItemCommand command = new ReturnItemCommand(
+                created.version(),
+                TODAY,
+                "  尺寸不合适  ");
+
+        ItemLifecycleResult first =
+                lifecycleService.returnItem(
+                        created.id(), key, command);
+        ItemLifecycleResult replay =
+                lifecycleService.returnItem(
+                        created.id(), key, command);
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(first.lifecycleStatus())
+                .isEqualTo("RETURNED");
+        assertThat(first.disposal().remark())
+                .isEqualTo("尺寸不合适");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT lifecycle_status
+                FROM trk_item
+                WHERE id = ?
+                """,
+                String.class,
+                created.id())).isEqualTo("RETURNED");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT version FROM trk_item WHERE id = ?",
+                Long.class,
+                created.id())).isEqualTo(2L);
+        assertThat(count("trk_item_disposal")).isEqualTo(1);
+        assertThat(count("trk_outbox_event")).isEqualTo(1);
+
+        JsonNode payload = objectMapper.readTree(
+                jdbcTemplate.queryForObject(
+                        "SELECT payload_json "
+                                + "FROM trk_outbox_event",
+                        String.class));
+        assertThat(payload.path("sourceVersion").asLong())
+                .isEqualTo(2);
+        assertThat(payload.path("reminderEnabled").asBoolean())
+                .isFalse();
+        assertThat(payload.path("businessStatusCode").asText())
+                .isEqualTo("RETURNED");
+        assertThat(payload.path("operationType").asText())
+                .isEqualTo("DISPOSE_ITEM");
+
+        ItemDetail detail = itemService.detail(created.id());
+        assertThat(detail.warrantyReminderEnabled()).isFalse();
+        assertThat(detail.disposal().type())
+                .isEqualTo("RETURNED");
+    }
+
+    @Test
+    void returnKeepsAlreadyDisabledReminderOff() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "耳机",
+                        null,
+                        "500",
+                        "2",
+                        null,
+                        TODAY,
+                        null,
+                        false));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+
+        lifecycleService.returnItem(
+                created.id(),
+                UUID.randomUUID().toString(),
+                new ReturnItemCommand(
+                        created.version(), TODAY, null));
+
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isFalse();
+    }
+
+    @Test
+    void disposalRollsBackItemAndFactWhenOutboxInsertFails() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "显示器",
+                        null,
+                        "2000",
+                        "3",
+                        null,
+                        TODAY,
+                        TODAY.plusDays(30),
+                        true));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+        jdbcTemplate.update(
+                """
+                INSERT INTO trk_outbox_event (
+                    id, event_id, aggregate_type, aggregate_id,
+                    user_id, source_version, event_type,
+                    payload_json, schema_version, status,
+                    retry_count, create_time, update_time
+                ) VALUES (
+                    ?, ?, 'ITEM', ?, ?, 2,
+                    'REMINDER_RECONCILE', '{}', 1, 'NEW',
+                    0, ?, ?
+                )
+                """,
+                9101L,
+                UUID.randomUUID().toString(),
+                created.id(),
+                USER_ID,
+                TODAY.atStartOfDay(),
+                TODAY.atStartOfDay());
+
+        assertThatThrownBy(() ->
+                lifecycleService.returnItem(
+                        created.id(),
+                        UUID.randomUUID().toString(),
+                        new ReturnItemCommand(
+                                created.version(),
+                                TODAY,
+                                null)))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT lifecycle_status
+                FROM trk_item
+                WHERE id = ?
+                """,
+                String.class,
+                created.id())).isEqualTo("HOLDING");
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isTrue();
+        assertThat(count("trk_item_disposal")).isZero();
+        assertThat(count("trk_outbox_event")).isEqualTo(1);
+    }
+
+    @Test
+    void terminalItemCannotReEnableWarrantyReminder() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "平板",
+                        null,
+                        "3000",
+                        "3",
+                        null,
+                        TODAY,
+                        TODAY.plusDays(30),
+                        true));
+        ItemLifecycleResult returned =
+                lifecycleService.returnItem(
+                        created.id(),
+                        UUID.randomUUID().toString(),
+                        new ReturnItemCommand(
+                                created.version(), TODAY, null));
+
+        assertStateConflict(() -> itemService.update(
+                created.id(),
+                UUID.randomUUID().toString(),
+                updateCommand(
+                        returned.version(),
+                        "平板",
+                        created.categoryId(),
+                        TODAY.plusDays(30),
+                        true)));
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isFalse();
     }
 
     @Test

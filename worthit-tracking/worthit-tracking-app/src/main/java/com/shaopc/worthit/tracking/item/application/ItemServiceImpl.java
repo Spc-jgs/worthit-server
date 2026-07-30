@@ -207,6 +207,10 @@ public class ItemServiceImpl implements ItemService {
         if (existing.version() != normalized.version()) {
             throw stateConflict();
         }
+        if (existing.lifecycleStatus().isTerminal()
+                && normalized.warrantyReminderEnabled()) {
+            throw stateConflict();
+        }
 
         Category category = categoryReferenceResolver.resolve(
                 normalized.categoryId(), userId);

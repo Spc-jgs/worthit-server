@@ -8,6 +8,11 @@ import java.util.Optional;
 public interface ItemDisposalRepository {
 
     /**
+     * 保存不可变处置事实。
+     */
+    ItemDisposal save(ItemDisposal disposal);
+
+    /**
      * 按物品与用户查询处置事实。
      */
     Optional<ItemDisposal> findByItemIdAndUserId(

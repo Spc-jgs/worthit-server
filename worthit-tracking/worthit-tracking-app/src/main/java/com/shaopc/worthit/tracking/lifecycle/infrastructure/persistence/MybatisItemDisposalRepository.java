@@ -19,12 +19,35 @@ public class MybatisItemDisposalRepository
     private final ItemDisposalMapper mapper;
 
     @Override
+    public ItemDisposal save(ItemDisposal disposal) {
+        mapper.insert(toData(disposal));
+        return disposal;
+    }
+
+    @Override
     public Optional<ItemDisposal> findByItemIdAndUserId(
             long itemId, long userId) {
         return Optional.ofNullable(
                         mapper.selectByItemAndUser(
                                 itemId, userId))
                 .map(MybatisItemDisposalRepository::toDomain);
+    }
+
+    private static ItemDisposalDO toData(
+            ItemDisposal disposal) {
+        ItemDisposalDO data = new ItemDisposalDO();
+        data.setId(disposal.id());
+        data.setUserId(disposal.userId());
+        data.setItemId(disposal.itemId());
+        data.setDisposalType(disposal.type().code());
+        data.setDisposalDate(disposal.disposalDate());
+        data.setPurchasePriceSnapshot(
+                disposal.purchasePriceSnapshot());
+        data.setSaleAmount(disposal.saleAmount());
+        data.setRemark(disposal.remark());
+        data.setCreateTime(disposal.createTime());
+        data.setUpdateTime(disposal.updateTime());
+        return data;
     }
 
     private static ItemDisposal toDomain(
