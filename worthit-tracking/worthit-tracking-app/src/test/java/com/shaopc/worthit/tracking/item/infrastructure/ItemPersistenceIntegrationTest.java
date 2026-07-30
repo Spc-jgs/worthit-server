@@ -38,7 +38,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -462,6 +468,39 @@ class ItemPersistenceIntegrationTest {
     }
 
     @Test
+    void sellKeepsAlreadyDisabledReminderOff() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "镜头",
+                        null,
+                        "800",
+                        "3",
+                        null,
+                        TODAY,
+                        null,
+                        false));
+
+        lifecycleService.sellItem(
+                created.id(),
+                UUID.randomUUID().toString(),
+                new SellItemCommand(
+                        created.version(),
+                        TODAY,
+                        new BigDecimal("600"),
+                        null));
+
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isFalse();
+    }
+
+    @Test
     void scrapsItemWithoutSaleAmountAndKeepsReminderOff() {
         ItemDetail created = itemService.create(
                 UUID.randomUUID().toString(),
@@ -497,6 +536,118 @@ class ItemPersistenceIntegrationTest {
                 """,
                 Boolean.class,
                 created.id())).isFalse();
+    }
+
+    @Test
+    void scrapClosesEnabledReminder() {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "旧鼠标",
+                        null,
+                        "200",
+                        "2",
+                        null,
+                        TODAY,
+                        TODAY.plusDays(30),
+                        true));
+
+        lifecycleService.scrapItem(
+                created.id(),
+                UUID.randomUUID().toString(),
+                new ScrapItemCommand(
+                        created.version(), TODAY, null));
+
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                created.id())).isFalse();
+    }
+
+    @Test
+    void concurrentDifferentDisposalsProduceOneCompleteChain()
+            throws Exception {
+        ItemDetail created = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "相机",
+                        null,
+                        "1000",
+                        "3",
+                        null,
+                        TODAY,
+                        TODAY.plusDays(30),
+                        true));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Object>> futures = List.of(
+                    executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return lifecycleService.returnItem(
+                                created.id(),
+                                UUID.randomUUID().toString(),
+                                new ReturnItemCommand(
+                                        created.version(),
+                                        TODAY,
+                                        null));
+                    }),
+                    executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return lifecycleService.sellItem(
+                                created.id(),
+                                UUID.randomUUID().toString(),
+                                new SellItemCommand(
+                                        created.version(),
+                                        TODAY,
+                                        new BigDecimal("800"),
+                                        null));
+                    }));
+            ready.await();
+            start.countDown();
+
+            int successes = 0;
+            int conflicts = 0;
+            for (Future<Object> future : futures) {
+                try {
+                    assertThat(future.get())
+                            .isInstanceOf(
+                                    ItemLifecycleResult.class);
+                    successes++;
+                } catch (ExecutionException exception) {
+                    assertThat(exception.getCause())
+                            .isInstanceOfSatisfying(
+                                    BusinessException.class,
+                                    businessException ->
+                                            assertThat(
+                                                    businessException
+                                                            .code())
+                                                    .isEqualTo(
+                                                            "VAL_STATE_CONFLICT"));
+                    conflicts++;
+                }
+            }
+            assertThat(successes).isEqualTo(1);
+            assertThat(conflicts).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(count("trk_item_disposal")).isEqualTo(1);
+        assertThat(count("trk_outbox_event")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT version FROM trk_item WHERE id = ?",
+                Long.class,
+                created.id())).isEqualTo(2L);
     }
 
     @Test
