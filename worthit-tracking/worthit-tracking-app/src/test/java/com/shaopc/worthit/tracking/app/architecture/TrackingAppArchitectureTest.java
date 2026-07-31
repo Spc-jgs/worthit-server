@@ -109,6 +109,30 @@ class TrackingAppArchitectureTest {
                             "..worthit.reminder..",
                             "..tracking.infrastructure.client..");
 
+    private static final ArchRule LIFECYCLE_DOMAIN_ISOLATION =
+            noClasses()
+                    .that()
+                    .resideInAPackage(
+                            "..tracking.lifecycle.domain..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAnyPackage(
+                            "org.springframework..",
+                            "com.baomidou.mybatisplus..",
+                            "..tracking.lifecycle.interfaces..",
+                            "..tracking.lifecycle.infrastructure..");
+
+    private static final ArchRule
+            LIFECYCLE_APPLICATION_DOES_NOT_DEPEND_ON_INFRASTRUCTURE =
+            noClasses()
+                    .that()
+                    .resideInAPackage(
+                            "..tracking.lifecycle.application..")
+                    .should()
+                    .dependOnClassesThat()
+                    .resideInAPackage(
+                            "..tracking.lifecycle.infrastructure..");
+
     @Test
     void importsProductionTrackingClassesIncludingInfrastructure() {
         JavaClasses classes = importProductionClasses();
@@ -179,6 +203,15 @@ class TrackingAppArchitectureTest {
         DASHBOARD_DOES_NOT_REUSE_DOMAIN_PERSISTENCE
                 .check(classes);
         DASHBOARD_DOES_NOT_DEPEND_ON_REMINDER
+                .check(classes);
+    }
+
+    @Test
+    void lifecycleKeepsDomainAndApplicationBoundaries() {
+        JavaClasses classes = importProductionClasses();
+
+        LIFECYCLE_DOMAIN_ISOLATION.check(classes);
+        LIFECYCLE_APPLICATION_DOES_NOT_DEPEND_ON_INFRASTRUCTURE
                 .check(classes);
     }
 

@@ -2,6 +2,8 @@ package com.shaopc.worthit.tracking.lifecycle.application;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.shaopc.worthit.common.core.error.BusinessException;
+import com.shaopc.worthit.common.core.pagination.PageQuery;
+import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
 import com.shaopc.worthit.reminder.client.command.ReconcileReminderCommand;
 import com.shaopc.worthit.reminder.client.contract.ReminderClientContract;
@@ -12,6 +14,7 @@ import com.shaopc.worthit.tracking.idempotency.application.IdempotencyExecutionC
 import com.shaopc.worthit.tracking.idempotency.application.RequestDigest;
 import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
 import com.shaopc.worthit.tracking.item.domain.Item;
+import com.shaopc.worthit.tracking.item.domain.ItemDeletionState;
 import com.shaopc.worthit.tracking.item.domain.ItemErrorCode;
 import com.shaopc.worthit.tracking.item.domain.ItemRepository;
 import com.shaopc.worthit.tracking.item.domain.ItemWithCategory;
@@ -19,6 +22,8 @@ import com.shaopc.worthit.tracking.lifecycle.domain.DisposalType;
 import com.shaopc.worthit.tracking.lifecycle.domain.ItemDisposal;
 import com.shaopc.worthit.tracking.lifecycle.domain.ItemDisposalRepository;
 import com.shaopc.worthit.tracking.lifecycle.domain.ItemLifecycleStateMachine;
+import com.shaopc.worthit.tracking.lifecycle.domain.ItemReplacement;
+import com.shaopc.worthit.tracking.lifecycle.domain.ItemReplacementRepository;
 import com.shaopc.worthit.tracking.outbox.application.ReminderOutboxWriter;
 import com.shaopc.worthit.tracking.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +34,7 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 编排物品处置状态机、幂等、本地事务与提醒 Outbox。
@@ -44,6 +50,8 @@ public class ItemLifecycleServiceImpl
 
     private final ItemRepository itemRepository;
     private final ItemDisposalRepository disposalRepository;
+    private final ItemReplacementRepository replacementRepository;
+    private final LifecycleReviewQuery lifecycleReviewQuery;
     private final IdempotencyExecutionCoordinator
             idempotencyCoordinator;
     private final RequestDigest requestDigest;
@@ -158,6 +166,92 @@ public class ItemLifecycleServiceImpl
                         null,
                         normalized.remark(),
                         today));
+    }
+
+    @Override
+    public ItemReplacementResult replaceItem(
+            long oldItemId,
+            String idempotencyKey,
+            ReplaceItemCommand command) {
+        if (command == null
+                || oldItemId <= 0
+                || command.newItemId() <= 0
+                || oldItemId == command.newItemId()) {
+            throw invalid();
+        }
+        long userId = currentUserProvider
+                .currentUser()
+                .userId();
+        ReplaceDigest digest = new ReplaceDigest(
+                oldItemId, command.newItemId());
+        return idempotencyCoordinator.execute(
+                userId,
+                TrackingOperation.ITEM_REPLACE,
+                idempotencyKey,
+                requestDigest.hash(digest),
+                ItemReplacementResult.class,
+                () -> replace(
+                        userId,
+                        oldItemId,
+                        command.newItemId()));
+    }
+
+    @Override
+    public PageResult<LifecycleReviewEntry> review(
+            int page, int size) {
+        long userId = currentUserProvider
+                .currentUser()
+                .userId();
+        return lifecycleReviewQuery.findPage(
+                userId, new PageQuery(page, size));
+    }
+
+    private ItemReplacementResult replace(
+            long userId,
+            long oldItemId,
+            long newItemId) {
+        List<Long> ids = List.of(oldItemId, newItemId)
+                .stream()
+                .sorted()
+                .toList();
+        List<ItemDeletionState> states =
+                itemRepository.lockDeletionStates(ids, userId);
+        if (states.size() != 2
+                || states.stream().anyMatch(
+                        ItemDeletionState::deleted)) {
+            throw new BusinessException(
+                    CommonWebErrorCode.RES_NOT_FOUND);
+        }
+        Item oldItem = itemById(states, oldItemId);
+        Item newItem = itemById(states, newItemId);
+        LocalDateTime now =
+                LocalDateTime.now(trackingClock);
+        ItemReplacement replacement =
+                replacementRepository.save(
+                        new ItemReplacement(
+                                IdWorker.getId(),
+                                userId,
+                                oldItemId,
+                                newItemId,
+                                now));
+        return new ItemReplacementResult(
+                replacement.id(),
+                new LifecycleItemBrief(
+                        oldItem.id(), oldItem.name()),
+                new LifecycleItemBrief(
+                        newItem.id(), newItem.name()),
+                replacement.createTime());
+    }
+
+    private static Item itemById(
+            List<ItemDeletionState> states,
+            long itemId) {
+        return states.stream()
+                .map(ItemDeletionState::item)
+                .filter(item -> item.id() == itemId)
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(
+                        CommonWebErrorCode.RES_NOT_FOUND));
     }
 
     private ItemLifecycleResult dispose(
@@ -326,5 +420,10 @@ public class ItemLifecycleServiceImpl
             LocalDate disposalDate,
             java.math.BigDecimal saleAmount,
             String remark) {
+    }
+
+    private record ReplaceDigest(
+            long oldItemId,
+            long newItemId) {
     }
 }

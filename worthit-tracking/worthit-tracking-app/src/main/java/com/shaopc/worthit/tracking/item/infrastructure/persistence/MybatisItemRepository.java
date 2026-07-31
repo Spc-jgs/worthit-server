@@ -74,6 +74,18 @@ public class MybatisItemRepository implements ItemRepository {
     }
 
     @Override
+    public List<ItemDeletionState> lockDeletionStates(
+            List<Long> itemIds, long userId) {
+        return itemMapper.selectForUpdate(itemIds, userId)
+                .stream()
+                .map(item -> new ItemDeletionState(
+                        toDomain(item),
+                        Boolean.TRUE.equals(item.getDelFlag()),
+                        item.getDeleteTime()))
+                .toList();
+    }
+
+    @Override
     public boolean update(Item item, long expectedVersion) {
         return itemMapper.updateByVersion(
                 item, expectedVersion) == 1;

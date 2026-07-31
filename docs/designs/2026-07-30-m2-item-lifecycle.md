@@ -1,7 +1,8 @@
 # M2 物品生命周期实现设计
 
 日期：2026-07-30
-状态：退货、卖出、报废已实现
+更新：2026-07-31
+状态：M2 生命周期闭环已实现并通过本地质量门禁
 关联：#10、#11、#12
 
 ## 1. 权威输入与范围
@@ -9,15 +10,15 @@
 本实现遵循上级文档现行基线：
 
 - PRD V0.15.6；
-- 微服务技术方案 V0.3.18；
-- 接口设计 V0.2.1；
+- 微服务技术方案 V0.3.19；
+- 接口设计 V0.2.2；
 - 数据库模型 V0.3.5 与 Tracking M2 V2；
-- 技术测试与质量门禁 V0.3.1；
-- 产品验收测试用例 V0.5.1。
+- 技术测试与质量门禁 V0.3.2；
+- 产品验收测试用例 V0.5.2。
 
-本轮完成幂等执行器、生命周期状态机、Tracking V2 迁移、终态指标冻结以及退货、
-卖出、报废闭环。替换关系、生命周期复盘和 Flyway/MySQL 8.4 兼容治理不在本轮
-实现范围。
+本轮完成幂等执行器、生命周期状态机、Tracking V2 迁移、终态指标冻结、退货、
+卖出、报废、替换关系和生命周期复盘闭环。Flyway/MySQL 8.4 版本兼容治理仍不在
+本轮实现范围；MySQL 8.4 迁移和持久化行为由 Testcontainers 门禁验证。
 
 ## 2. 分层与所有权
 
@@ -111,5 +112,41 @@ Relay、重试、DEAD 和人工重放机制最终收敛。
 7. 报废；
 8. #12 并发、回滚、提醒真/假分支、OpenAPI 与三层门禁。
 
-合码前执行 Tracking 与 Reminder reactor 测试、`git diff --check`、分层审查和
-公网 OpenAPI 契约检查。
+### 8.1 替换关系
+
+- 公网写接口为 `POST /api/v1/items/{oldItemId}/replace`，请求体只包含字符串
+  `newItemId`，响应返回字符串 `relationId` 和带名称的旧/新物品摘要。
+- 两件物品必须属于当前用户、未逻辑删除且 ID 不同；生命周期状态不限制。
+- 业务事务按物品 ID 升序执行 `SELECT ... FOR UPDATE`，消除替换与逻辑删除之间的
+  锁顺序歧义；数据库 `uk_repl_old_item`、`uk_repl_new_item` 作为旧/新角色
+  一对一的最终防线。
+- 替换只追加不可变关系事实，不改变物品状态、版本、保修提醒，也不写 Reminder
+  Outbox。
+- `ITEM_REPLACE + Idempotency-Key` 保证成功重放与请求摘要冲突语义一致。
+
+### 8.2 生命周期复盘
+
+- 公网读接口为 `GET /api/v1/lifecycle/review?page=1&size=20`。
+- 读模型使用 `DISPOSAL / REPLACEMENT` 显式判别联合；`disposal` 与
+  `replacement` 两个分支恰好一个非空。
+- Disposal 的 `eventDate` 使用业务处置日期；Replacement 使用
+  `DATE(create_time)`；统一按
+  `eventDate DESC, createTime DESC, id DESC` 稳定分页。
+- 查询只连接 Tracking 本地事实和物品表，不依赖缓存、快照表或跨服务调用；连接
+  物品历史时不以 `del_flag=0` 过滤，因此逻辑删除后仍可复盘。
+- 卖出净成本只使用处置事实内的购买价快照，不受当前物品价格修改影响。
+- Gateway Nacos 模板显式路由 `/api/v1/lifecycle/**` 到 Tracking；公网
+  OpenAPI 包含新接口，内部 OpenAPI 不暴露它们。
+
+### 8.3 验证证据
+
+实现顺序遵循 RED → GREEN → REFACTOR。合码前已执行：
+
+- Flyway 执行源一致性自测与正式校验；
+- `./mvnw --batch-mode --no-transfer-progress clean verify`；
+- 18 个 reactor 模块全部成功，Surefire 共 445 个测试，0 failure、
+  0 error、0 skipped；
+- MySQL 8.4、Redis 7.4、Nacos 3.0.3 本机容器的 Compose 渲染、镜像、
+  health、端口及 Nacos readiness 只读探测；
+- `git diff --check`、分层架构、并发、用户隔离、持久化、Gateway 路由和公网
+  OpenAPI 契约检查。

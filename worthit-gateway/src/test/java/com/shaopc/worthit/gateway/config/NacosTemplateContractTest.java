@@ -93,7 +93,8 @@ class NacosTemplateContractTest {
                                 + "/api/v1/items/**,"
                                 + "/api/v1/wishes/**,"
                                 + "/api/v1/subscriptions/**,"
-                                + "/api/v1/dashboard",
+                                + "/api/v1/dashboard,"
+                                + "/api/v1/lifecycle/**",
                         "- Path=/api/v1/reminders/**")
                 .doesNotContain(
                         "- Path=/api/auth/**",

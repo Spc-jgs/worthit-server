@@ -1,5 +1,7 @@
 package com.shaopc.worthit.tracking.lifecycle.interfaces.rest;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
@@ -8,11 +10,14 @@ import com.shaopc.worthit.common.webmvc.error.WorthItRestExceptionHandler;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyErrorCode;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemReplacementResult;
+import com.shaopc.worthit.tracking.lifecycle.application.LifecycleItemBrief;
 import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.ScrapItemCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -43,9 +48,17 @@ class ItemLifecycleControllerTest {
     @BeforeEach
     void setUp() {
         TraceIdGenerator traceIdGenerator = () -> TRACE_ID;
+        ObjectMapper objectMapper = new ObjectMapper()
+                .findAndRegisterModules()
+                .disable(
+                        SerializationFeature
+                                .WRITE_DATES_AS_TIMESTAMPS);
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new ItemLifecycleController(
                                 lifecycleService))
+                .setMessageConverters(
+                        new MappingJackson2HttpMessageConverter(
+                                objectMapper))
                 .setControllerAdvice(
                         new WorthItRestExceptionHandler(
                                 new DefaultErrorHttpStatusResolver(),
@@ -216,6 +229,43 @@ class ItemLifecycleControllerTest {
                         .value("SCRAPPED"))
                 .andExpect(jsonPath("$.data.disposal.netCost")
                         .doesNotExist());
+    }
+
+    @Test
+    void replacesItemThroughFrozenStringIdContract()
+            throws Exception {
+        when(lifecycleService.replaceItem(
+                eq(1938L), eq(IDEMPOTENCY_KEY), any()))
+                .thenReturn(new ItemReplacementResult(
+                        9001L,
+                        new LifecycleItemBrief(1938L, "旧手机"),
+                        new LifecycleItemBrief(1939L, "新手机"),
+                        LocalDateTime.of(2026, 7, 31, 15, 0)));
+
+        mockMvc.perform(post("/api/v1/items/1938/replace")
+                        .header(
+                                "Idempotency-Key",
+                                IDEMPOTENCY_KEY)
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID,
+                                TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"newItemId":"1939"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.relationId")
+                        .value("9001"))
+                .andExpect(jsonPath("$.data.oldItem.id")
+                        .value("1938"))
+                .andExpect(jsonPath("$.data.oldItem.name")
+                        .value("旧手机"))
+                .andExpect(jsonPath("$.data.newItem.id")
+                        .value("1939"))
+                .andExpect(jsonPath("$.data.newItem.name")
+                        .value("新手机"))
+                .andExpect(jsonPath("$.data.createTime")
+                        .value("2026-07-31T15:00:00"));
     }
 
     private static ItemLifecycleResult returned() {
