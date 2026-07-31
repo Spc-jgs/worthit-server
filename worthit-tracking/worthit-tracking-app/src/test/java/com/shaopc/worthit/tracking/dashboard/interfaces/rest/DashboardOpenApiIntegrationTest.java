@@ -132,6 +132,60 @@ class DashboardOpenApiIntegrationTest {
         assertThat(schemas.has("ItemDisposalResponse")).isTrue();
     }
 
+    @Test
+    void publishesReplacementAndReviewFrozenSchemas()
+            throws Exception {
+        JsonNode publicDocument =
+                getOpenApiDocument("/v3/api-docs/public");
+        JsonNode internalDocument =
+                getOpenApiDocument("/v3/api-docs/internal");
+        String replacementPath =
+                "/api/v1/items/{oldItemId}/replace";
+        String reviewPath =
+                "/api/v1/lifecycle/review";
+
+        assertThat(publicDocument.path("paths")
+                .has(replacementPath)).isTrue();
+        assertThat(publicDocument.path("paths")
+                .has(reviewPath)).isTrue();
+        assertThat(internalDocument.path("paths")
+                .has(replacementPath)).isFalse();
+        assertThat(internalDocument.path("paths")
+                .has(reviewPath)).isFalse();
+
+        JsonNode schemas = publicDocument
+                .path("components")
+                .path("schemas");
+        assertThat(schemas.path("ItemReplacementResponse")
+                .path("properties")
+                .path("relationId")
+                .path("type")
+                .asText()).isEqualTo("string");
+        assertThat(schemas.path("LifecycleItemBriefResponse")
+                .path("properties")
+                .path("id")
+                .path("type")
+                .asText()).isEqualTo("string");
+        assertThat(schemas.path("LifecycleReviewEntryResponse")
+                .path("properties")
+                .path("id")
+                .path("type")
+                .asText()).isEqualTo("string");
+        assertThat(schemas.path("LifecycleReviewEntryResponse")
+                .path("properties")
+                .has("disposal")).isTrue();
+        assertThat(schemas.path("LifecycleReviewEntryResponse")
+                .path("properties")
+                .has("replacement")).isTrue();
+        assertThat(schemas.path("LifecycleDisposalReviewResponse")
+                .path("properties")
+                .has("saleAmount")).isTrue();
+        assertThat(schemas.path(
+                        "LifecycleReplacementReviewResponse")
+                .path("properties")
+                .size()).isEqualTo(2);
+    }
+
     private JsonNode getOpenApiDocument(String path)
             throws Exception {
         String content = mockMvc.perform(get(path))

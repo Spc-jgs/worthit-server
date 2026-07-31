@@ -14,6 +14,9 @@ import com.shaopc.worthit.tracking.item.application.ItemSummary;
 import com.shaopc.worthit.tracking.item.application.UpdateItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemReplacementResult;
+import com.shaopc.worthit.tracking.lifecycle.application.LifecycleReviewEntry;
+import com.shaopc.worthit.tracking.lifecycle.application.ReplaceItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.ReturnItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.ScrapItemCommand;
@@ -109,6 +112,7 @@ class ItemPersistenceIntegrationTest {
         jdbcTemplate.update("DELETE FROM trk_outbox_event");
         jdbcTemplate.update(
                 "DELETE FROM trk_idempotency_record");
+        jdbcTemplate.update("DELETE FROM trk_item_replacement");
         jdbcTemplate.update("DELETE FROM trk_item_disposal");
         jdbcTemplate.update("DELETE FROM trk_item");
         jdbcTemplate.update("DELETE FROM trk_category");
@@ -536,6 +540,356 @@ class ItemPersistenceIntegrationTest {
                 """,
                 Boolean.class,
                 created.id())).isFalse();
+    }
+
+    @Test
+    void replacementIsIdempotentAndDoesNotMutateItemsOrOutbox() {
+        ItemDetail oldItem = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "旧手机",
+                        null,
+                        "5000",
+                        "3",
+                        null,
+                        TODAY,
+                        null,
+                        false));
+        ItemDetail newItem = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "新手机",
+                        null,
+                        "6000",
+                        "3",
+                        null,
+                        TODAY,
+                        TODAY.plusDays(30),
+                        true));
+        lifecycleService.sellItem(
+                oldItem.id(),
+                UUID.randomUUID().toString(),
+                new SellItemCommand(
+                        oldItem.version(),
+                        TODAY,
+                        new BigDecimal("2000"),
+                        null));
+        jdbcTemplate.update("DELETE FROM trk_outbox_event");
+        long oldVersion = versionOf(oldItem.id());
+        long newVersion = versionOf(newItem.id());
+        String key = UUID.randomUUID().toString();
+        ReplaceItemCommand command =
+                new ReplaceItemCommand(newItem.id());
+
+        ItemReplacementResult first =
+                lifecycleService.replaceItem(
+                        oldItem.id(), key, command);
+        ItemReplacementResult replay =
+                lifecycleService.replaceItem(
+                        oldItem.id(), key, command);
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(first.oldItem().name()).isEqualTo("旧手机");
+        assertThat(first.newItem().name()).isEqualTo("新手机");
+        assertThat(count("trk_item_replacement")).isEqualTo(1);
+        assertThat(versionOf(oldItem.id())).isEqualTo(oldVersion);
+        assertThat(versionOf(newItem.id())).isEqualTo(newVersion);
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT warranty_reminder_enabled
+                FROM trk_item
+                WHERE id = ?
+                """,
+                Boolean.class,
+                newItem.id())).isTrue();
+        assertThat(count("trk_outbox_event")).isZero();
+    }
+
+    @Test
+    void replacementEnforcesOldAndNewRoleUniqueness() {
+        ItemDetail first = createSimpleItem("旧物品");
+        ItemDetail second = createSimpleItem("新物品");
+        ItemDetail third = createSimpleItem("第三物品");
+
+        lifecycleService.replaceItem(
+                first.id(),
+                UUID.randomUUID().toString(),
+                new ReplaceItemCommand(second.id()));
+
+        assertStateConflict(() ->
+                lifecycleService.replaceItem(
+                        first.id(),
+                        UUID.randomUUID().toString(),
+                        new ReplaceItemCommand(third.id())));
+        assertStateConflict(() ->
+                lifecycleService.replaceItem(
+                        third.id(),
+                        UUID.randomUUID().toString(),
+                        new ReplaceItemCommand(second.id())));
+        assertThat(count("trk_item_replacement")).isEqualTo(1);
+    }
+
+    @Test
+    void replacementRejectsSameDeletedAndOtherUsers() {
+        ItemDetail first = createSimpleItem("旧物品");
+        ItemDetail second = createSimpleItem("新物品");
+
+        assertThatThrownBy(() ->
+                lifecycleService.replaceItem(
+                        first.id(),
+                        UUID.randomUUID().toString(),
+                        new ReplaceItemCommand(first.id())))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("VAL_INVALID_ARGUMENT"));
+
+        itemService.delete(
+                second.id(),
+                second.version(),
+                UUID.randomUUID().toString());
+        assertNotFound(() ->
+                lifecycleService.replaceItem(
+                        first.id(),
+                        UUID.randomUUID().toString(),
+                        new ReplaceItemCommand(second.id())));
+
+        CURRENT_USER.set(2002L);
+        assertNotFound(() ->
+                lifecycleService.replaceItem(
+                        first.id(),
+                        UUID.randomUUID().toString(),
+                        new ReplaceItemCommand(second.id())));
+        assertThat(count("trk_item_replacement")).isZero();
+    }
+
+    @Test
+    void concurrentReplacementForSameOldItemCreatesOneRelation()
+            throws Exception {
+        ItemDetail oldItem = createSimpleItem("旧物品");
+        ItemDetail firstNew = createSimpleItem("新物品一");
+        ItemDetail secondNew = createSimpleItem("新物品二");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Object>> futures = List.of(
+                    executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return lifecycleService.replaceItem(
+                                oldItem.id(),
+                                UUID.randomUUID().toString(),
+                                new ReplaceItemCommand(
+                                        firstNew.id()));
+                    }),
+                    executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return lifecycleService.replaceItem(
+                                oldItem.id(),
+                                UUID.randomUUID().toString(),
+                                new ReplaceItemCommand(
+                                        secondNew.id()));
+                    }));
+            ready.await();
+            start.countDown();
+
+            int successes = 0;
+            int conflicts = 0;
+            for (Future<Object> future : futures) {
+                try {
+                    assertThat(future.get())
+                            .isInstanceOf(
+                                    ItemReplacementResult.class);
+                    successes++;
+                } catch (ExecutionException exception) {
+                    assertThat(exception.getCause())
+                            .isInstanceOfSatisfying(
+                                    BusinessException.class,
+                                    businessException ->
+                                            assertThat(
+                                                    businessException
+                                                            .code())
+                                                    .isEqualTo(
+                                                            "VAL_STATE_CONFLICT"));
+                    conflicts++;
+                }
+            }
+            assertThat(successes).isEqualTo(1);
+            assertThat(conflicts).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+        assertThat(count("trk_item_replacement")).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentReplacementAndDeleteLeaveAConsistentHistory()
+            throws Exception {
+        ItemDetail oldItem = createSimpleItem("旧物品");
+        ItemDetail newItem = createSimpleItem("新物品");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+        Future<Object> replacementFuture;
+        Future<Object> deleteFuture;
+        try {
+            replacementFuture = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return lifecycleService.replaceItem(
+                        oldItem.id(),
+                        UUID.randomUUID().toString(),
+                        new ReplaceItemCommand(newItem.id()));
+            });
+            deleteFuture = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return itemService.delete(
+                        newItem.id(),
+                        newItem.version(),
+                        UUID.randomUUID().toString());
+            });
+            ready.await();
+            start.countDown();
+
+            assertThat(deleteFuture.get())
+                    .isInstanceOf(DeleteItemResult.class);
+            try {
+                assertThat(replacementFuture.get())
+                        .isInstanceOf(
+                                ItemReplacementResult.class);
+            } catch (ExecutionException exception) {
+                assertThat(exception.getCause())
+                        .isInstanceOfSatisfying(
+                                BusinessException.class,
+                                businessException ->
+                                        assertThat(
+                                                businessException.code())
+                                                .isEqualTo(
+                                                        "RES_NOT_FOUND"));
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT del_flag FROM trk_item WHERE id = ?",
+                Boolean.class,
+                newItem.id())).isTrue();
+        assertThat(count("trk_item_replacement"))
+                .isBetween(0, 1);
+        if (count("trk_item_replacement") == 1) {
+            assertThat(lifecycleService.review(1, 20)
+                    .getItems()).hasSize(1);
+        }
+    }
+
+    @Test
+    void lifecycleReviewUnionsFactsWithStablePagination() {
+        ItemDetail oldItem = createSimpleItem("旧手机");
+        ItemDetail newItem = createSimpleItem("新手机");
+        ItemDetail soldItem = itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        "相机",
+                        null,
+                        "1000",
+                        "3",
+                        null,
+                        TODAY.minusDays(10),
+                        null,
+                        false));
+        ItemReplacementResult replacement =
+                lifecycleService.replaceItem(
+                        oldItem.id(),
+                        UUID.randomUUID().toString(),
+                        new ReplaceItemCommand(newItem.id()));
+        CURRENT_INSTANT.set(
+                Instant.parse("2026-07-26T04:01:00Z"));
+        lifecycleService.sellItem(
+                        soldItem.id(),
+                        UUID.randomUUID().toString(),
+                        new SellItemCommand(
+                                soldItem.version(),
+                                TODAY,
+                                new BigDecimal("800"),
+                                null));
+        jdbcTemplate.update(
+                "UPDATE trk_item SET purchase_price = 1200 "
+                        + "WHERE id = ?",
+                soldItem.id());
+
+        PageResult<LifecycleReviewEntry> firstPage =
+                lifecycleService.review(1, 1);
+        PageResult<LifecycleReviewEntry> secondPage =
+                lifecycleService.review(2, 1);
+
+        assertThat(firstPage.getTotal()).isEqualTo(2);
+        assertThat(firstPage.isHasMore()).isTrue();
+        assertThat(secondPage.isHasMore()).isFalse();
+        LifecycleReviewEntry first =
+                firstPage.getItems().get(0);
+        LifecycleReviewEntry second =
+                secondPage.getItems().get(0);
+        assertThat(first.id()).isEqualTo(
+                jdbcTemplate.queryForObject(
+                        "SELECT id "
+                                + "FROM trk_item_disposal "
+                                + "WHERE item_id = ?",
+                        Long.class,
+                        soldItem.id()));
+        assertThat(first.entryType().name())
+                .isEqualTo("DISPOSAL");
+        assertThat(first.disposal().saleAmount())
+                .isEqualTo("800.000000");
+        assertThat(first.disposal().netCost())
+                .isEqualTo("200.000000");
+        assertThat(first.replacement()).isNull();
+        assertThat(second.id()).isEqualTo(
+                replacement.relationId());
+        assertThat(second.entryType().name())
+                .isEqualTo("REPLACEMENT");
+        assertThat(second.eventDate()).isEqualTo(TODAY);
+        assertThat(second.disposal()).isNull();
+        assertThat(second.replacement().oldItem().name())
+                .isEqualTo("旧手机");
+        assertThat(second.replacement().newItem().name())
+                .isEqualTo("新手机");
+    }
+
+    @Test
+    void lifecycleReviewRetainsDeletedHistoryAndIsolatesUsers() {
+        ItemDetail oldItem = createSimpleItem("旧手机");
+        ItemDetail newItem = createSimpleItem("新手机");
+        lifecycleService.replaceItem(
+                oldItem.id(),
+                UUID.randomUUID().toString(),
+                new ReplaceItemCommand(newItem.id()));
+        itemService.delete(
+                oldItem.id(),
+                oldItem.version(),
+                UUID.randomUUID().toString());
+        itemService.delete(
+                newItem.id(),
+                newItem.version(),
+                UUID.randomUUID().toString());
+
+        PageResult<LifecycleReviewEntry> own =
+                lifecycleService.review(1, 20);
+        assertThat(own.getItems()).hasSize(1);
+        assertThat(own.getItems().get(0)
+                .replacement().oldItem().name())
+                .isEqualTo("旧手机");
+
+        CURRENT_USER.set(2002L);
+        PageResult<LifecycleReviewEntry> other =
+                lifecycleService.review(1, 20);
+        assertThat(other.getItems()).isEmpty();
+        assertThat(other.getTotal()).isZero();
     }
 
     @Test
@@ -982,6 +1336,27 @@ class ItemPersistenceIntegrationTest {
                 Integer.class);
     }
 
+    private long versionOf(long itemId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT version FROM trk_item WHERE id = ?",
+                Long.class,
+                itemId);
+    }
+
+    private ItemDetail createSimpleItem(String name) {
+        return itemService.create(
+                UUID.randomUUID().toString(),
+                command(
+                        name,
+                        null,
+                        "1000",
+                        "2",
+                        null,
+                        TODAY,
+                        null,
+                        false));
+    }
+
     private static UpdateItemCommand updateCommand(
             long version,
             String name,
@@ -1009,6 +1384,15 @@ class ItemPersistenceIntegrationTest {
                         BusinessException.class,
                         exception -> assertThat(exception.code())
                                 .isEqualTo("VAL_STATE_CONFLICT"));
+    }
+
+    private static void assertNotFound(
+            org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("RES_NOT_FOUND"));
     }
 
     private static CreateItemCommand command(

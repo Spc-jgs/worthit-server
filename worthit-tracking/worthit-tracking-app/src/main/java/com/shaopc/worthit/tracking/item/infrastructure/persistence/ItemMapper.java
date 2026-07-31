@@ -133,6 +133,36 @@ public interface ItemMapper extends BaseMapper<ItemDO> {
             @Param("categoryId") Long categoryId);
 
     /**
+     * 按标识升序锁定当前用户物品，包含已逻辑删除数据。
+     */
+    @Select("""
+            <script>
+            SELECT id, user_id, category_id, name,
+                   purchase_price, expected_years,
+                   residual_value, purchase_date,
+                   warranty_expire_date,
+                   warranty_reminder_enabled,
+                   brand_model, remark, source_wish_id,
+                   lifecycle_status, version,
+                   create_by, create_time,
+                   update_by, update_time,
+                   del_flag, delete_time
+            FROM trk_item
+            WHERE user_id = #{userId}
+              AND id IN
+              <foreach collection="itemIds" item="itemId"
+                       open="(" separator="," close=")">
+                #{itemId}
+              </foreach>
+            ORDER BY id
+            FOR UPDATE
+            </script>
+            """)
+    List<ItemDO> selectForUpdate(
+            @Param("itemIds") List<Long> itemIds,
+            @Param("userId") long userId);
+
+    /**
      * 按版本更新有效物品。
      */
     @Update("""

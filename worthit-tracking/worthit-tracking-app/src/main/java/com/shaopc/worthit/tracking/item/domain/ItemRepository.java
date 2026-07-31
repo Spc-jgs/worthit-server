@@ -4,6 +4,7 @@ import com.shaopc.worthit.common.core.pagination.PageQuery;
 import com.shaopc.worthit.common.core.pagination.PageResult;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -41,6 +42,12 @@ public interface ItemRepository {
      */
     Optional<ItemDeletionState> findDeletionState(
             long itemId, long userId);
+
+    /**
+     * 按标识升序锁定当前用户物品，包含已逻辑删除数据。
+     */
+    List<ItemDeletionState> lockDeletionStates(
+            List<Long> itemIds, long userId);
 
     /**
      * 按版本更新用户的有效物品。

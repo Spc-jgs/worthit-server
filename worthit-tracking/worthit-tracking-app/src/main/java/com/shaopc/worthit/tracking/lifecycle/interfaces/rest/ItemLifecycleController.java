@@ -4,9 +4,13 @@ import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.web.response.ApiResponse;
 import com.shaopc.worthit.tracking.interfaces.rest.TrackingHeaderNames;
 import com.shaopc.worthit.tracking.interfaces.rest.UuidFormat;
+import com.shaopc.worthit.tracking.interfaces.rest.PositiveLongIdParser;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemDisposalDetail;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleResult;
 import com.shaopc.worthit.tracking.lifecycle.application.ItemLifecycleService;
+import com.shaopc.worthit.tracking.lifecycle.application.ItemReplacementResult;
+import com.shaopc.worthit.tracking.lifecycle.application.LifecycleItemBrief;
+import com.shaopc.worthit.tracking.lifecycle.application.ReplaceItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.ReturnItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.SellItemCommand;
 import com.shaopc.worthit.tracking.lifecycle.application.ScrapItemCommand;
@@ -34,7 +38,7 @@ import java.math.BigDecimal;
 @Validated
 @RestController
 @RequestMapping("/api/v1/items")
-@Tag(name = "物品生命周期", description = "退货、卖出与报废")
+@Tag(name = "物品生命周期", description = "退货、卖出、报废与替换")
 @RequiredArgsConstructor
 public class ItemLifecycleController {
 
@@ -127,6 +131,48 @@ public class ItemLifecycleController {
                                 request.scrapDate(),
                                 request.remark()));
         return ApiResponse.success(toResponse(result), traceId);
+    }
+
+    /**
+     * 建立旧物品到新物品的替换关系。
+     */
+    @PostMapping("/{oldItemId}/replace")
+    @Operation(summary = "建立物品替换关系")
+    public ApiResponse<ItemReplacementResponse> replaceItem(
+            @Positive
+            @PathVariable("oldItemId") long oldItemId,
+            @RequestHeader(
+                    value = TrackingHeaderNames.IDEMPOTENCY_KEY,
+                    required = false)
+            @NotBlank(message = "幂等键不能为空")
+            @Pattern(
+                    regexp = UuidFormat.PATTERN,
+                    message = "幂等键必须是UUID")
+            String idempotencyKey,
+            @Valid @RequestBody ReplaceItemRequest request,
+            @RequestAttribute(SecurityHeaderNames.TRACE_ID)
+            String traceId) {
+        ItemReplacementResult result =
+                lifecycleService.replaceItem(
+                        oldItemId,
+                        idempotencyKey,
+                        new ReplaceItemCommand(
+                                PositiveLongIdParser.parseNullable(
+                                        request.newItemId())));
+        return ApiResponse.success(
+                new ItemReplacementResponse(
+                        Long.toString(result.relationId()),
+                        toResponse(result.oldItem()),
+                        toResponse(result.newItem()),
+                        result.createTime()),
+                traceId);
+    }
+
+    private static LifecycleItemBriefResponse toResponse(
+            LifecycleItemBrief item) {
+        return new LifecycleItemBriefResponse(
+                Long.toString(item.id()),
+                item.name());
     }
 
     private static ItemLifecycleResponse toResponse(
