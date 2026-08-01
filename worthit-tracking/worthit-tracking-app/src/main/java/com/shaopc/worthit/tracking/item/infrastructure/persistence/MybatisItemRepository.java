@@ -127,6 +127,21 @@ public class MybatisItemRepository implements ItemRepository {
     }
 
     @Override
+    public boolean restoreToCategory(
+            long itemId,
+            long userId,
+            long deletedVersion,
+            long categoryId,
+            LocalDateTime now) {
+        return itemMapper.restoreByVersionToCategory(
+                itemId,
+                userId,
+                deletedVersion,
+                categoryId,
+                now) == 1;
+    }
+
+    @Override
     public PageResult<ItemWithCategory> findPage(
             long userId,
             PageQuery pageQuery,

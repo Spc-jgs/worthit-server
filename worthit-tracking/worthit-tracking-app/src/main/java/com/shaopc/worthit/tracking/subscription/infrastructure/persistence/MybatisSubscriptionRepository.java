@@ -151,6 +151,21 @@ public class MybatisSubscriptionRepository
                 now) == 1;
     }
 
+    @Override
+    public boolean restoreToCategory(
+            long subscriptionId,
+            long userId,
+            long deletedVersion,
+            long categoryId,
+            LocalDateTime now) {
+        return mapper.restoreByVersionToCategory(
+                subscriptionId,
+                userId,
+                deletedVersion,
+                categoryId,
+                now) == 1;
+    }
+
     private SubscriptionDO toData(
             Subscription subscription) {
         SubscriptionDO data = new SubscriptionDO();

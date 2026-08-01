@@ -133,6 +133,44 @@ class DashboardOpenApiIntegrationTest {
     }
 
     @Test
+    void publishesRecoveryPathsAndStringIdentifiersOnlyInPublicGroup()
+            throws Exception {
+        JsonNode publicDocument =
+                getOpenApiDocument("/v3/api-docs/public");
+        JsonNode internalDocument =
+                getOpenApiDocument("/v3/api-docs/internal");
+        String listPath = "/api/v1/recovery/resources";
+        String restorePath =
+                "/api/v1/recovery/resources/{resourceType}/{id}/restore";
+
+        assertThat(publicDocument.path("paths").has(listPath))
+                .isTrue();
+        assertThat(publicDocument.path("paths").has(restorePath))
+                .isTrue();
+        assertThat(internalDocument.path("paths").has(listPath))
+                .isFalse();
+        assertThat(internalDocument.path("paths").has(restorePath))
+                .isFalse();
+
+        JsonNode schemas = publicDocument
+                .path("components")
+                .path("schemas");
+        assertThat(schemas.path("DeletedRecoveryResourceResponse")
+                .path("properties")
+                .path("id")
+                .path("type")
+                .asText()).isEqualTo("string");
+        assertThat(schemas.path("FullRestoreResponse")
+                .path("properties")
+                .path("categoryId")
+                .path("type")
+                .asText()).isEqualTo("string");
+        assertThat(schemas.path("FullRestoreRequest")
+                .path("properties")
+                .has("version")).isTrue();
+    }
+
+    @Test
     void publishesReplacementAndReviewFrozenSchemas()
             throws Exception {
         JsonNode publicDocument =

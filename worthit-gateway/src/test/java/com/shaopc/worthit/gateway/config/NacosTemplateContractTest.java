@@ -94,7 +94,8 @@ class NacosTemplateContractTest {
                                 + "/api/v1/wishes/**,"
                                 + "/api/v1/subscriptions/**,"
                                 + "/api/v1/dashboard,"
-                                + "/api/v1/lifecycle/**",
+                                + "/api/v1/lifecycle/**,"
+                                + "/api/v1/recovery/**",
                         "- Path=/api/v1/reminders/**")
                 .doesNotContain(
                         "- Path=/api/auth/**",
@@ -149,6 +150,35 @@ class NacosTemplateContractTest {
 
         assertThat(process.waitFor()).as(output).isZero();
         assertThat(output).contains("Nacos server and console: READY");
+    }
+
+    @Test
+    void fullRecoveryScriptUsesPublicApisAndWaitsForShortWindow()
+            throws IOException, InterruptedException {
+        Path script = repositoryRoot.resolve(
+                "scripts/local-infra/verify-m3-full-recovery.sh");
+        assertThat(script).isRegularFile();
+        String content = read(script);
+        assertThat(content)
+                .contains(
+                        "/api/v1/recovery/resources",
+                        "/api/v1/categories/",
+                        "WORTHIT_RECOVERY_WAIT_SECONDS:-61",
+                        "WORTHIT_AUTH_SECONDARY_USERNAME",
+                        "categoryFallbackApplied")
+                .doesNotContain(
+                        "docker compose",
+                        "MYSQL_PWD",
+                        "dev-stack/.env");
+
+        Process process = new ProcessBuilder(
+                "/bin/bash", "-n", script.toString())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(
+                process.getInputStream().readAllBytes(),
+                StandardCharsets.UTF_8);
+        assertThat(process.waitFor()).as(output).isZero();
     }
 
     private PropertySource<?> load(String dataId) throws IOException {

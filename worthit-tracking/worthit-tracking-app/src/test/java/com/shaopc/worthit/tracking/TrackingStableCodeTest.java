@@ -78,6 +78,7 @@ class TrackingStableCodeTest {
                         "ITEM_UPDATE",
                         "ITEM_DELETE",
                         "ITEM_RESTORE",
+                        "ITEM_FULL_RESTORE",
                         "ITEM_RETURN",
                         "ITEM_SELL",
                         "ITEM_SCRAP",
@@ -89,13 +90,15 @@ class TrackingStableCodeTest {
                         "SUB_RESUME",
                         "SUB_DELETE",
                         "SUB_RESTORE",
+                        "SUB_FULL_RESTORE",
                         "WISH_CREATE",
                         "WISH_UPDATE",
                         "WISH_PURCHASE",
                         "WISH_ABANDON",
                         "WISH_RECONSIDER",
                         "WISH_DELETE",
-                        "WISH_RESTORE");
+                        "WISH_RESTORE",
+                        "WISH_FULL_RESTORE");
         assertThat(OutboxEventType.REMINDER_RECONCILE.code())
                 .isEqualTo("REMINDER_RECONCILE");
         assertThat(OutboxStatus.NEW.code()).isEqualTo("NEW");

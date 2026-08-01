@@ -91,6 +91,16 @@ public interface ItemRepository {
             LocalDateTime now);
 
     /**
+     * 按删除后版本恢复到完整恢复协议选定的分类。
+     */
+    boolean restoreToCategory(
+            long itemId,
+            long userId,
+            long deletedVersion,
+            long categoryId,
+            LocalDateTime now);
+
+    /**
      * 分页查询用户有效物品。
      */
     PageResult<ItemWithCategory> findPage(

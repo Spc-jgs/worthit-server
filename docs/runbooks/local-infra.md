@@ -161,6 +161,7 @@ scripts/local-infra/nacos-config.sh services
 scripts/local-infra/verify.sh
 scripts/local-infra/verify-public-api.sh
 scripts/local-infra/verify-release-candidate.sh
+scripts/local-infra/verify-m3-full-recovery.sh
 bash scripts/verify-flyway-source-parity.sh
 ```
 
@@ -193,6 +194,13 @@ M2 处置/替换/复盘、幂等冲突与重放、两个用户的 404 隔离、�
 `remind_at` 精确调整到当前时刻之前；该数据库写入只允许独立本地测试账号，不进入普通
 Maven/CI，也不提供生产或公网改时钟入口。脚本退出时通过公网精确逻辑删除本轮业务对象，
 不清库、不操作容器。
+
+`verify-m3-full-recovery.sh` 是 M3 Tracking 完整恢复公网门禁，要求与发布候选脚本相同
+的两个本地账号，但不需要数据库账号。脚本经 Gateway 创建并删除 Item、Subscription、
+Wish，验证统一已删除列表、类型筛选、字符串 ID 和用户隔离；等待至少 61 秒确认短时
+恢复窗口结束，删除原自定义分类，再以 UUID 幂等键执行长期恢复，验证三类对象均回落
+系统“未分类”、同键重放、旧版本冲突和恢复后列表移除。脚本只操作本轮唯一命名对象，
+不读取数据库、不启动或停止中间件；正常结束时通过公网再次逻辑删除本轮对象。
 
 ### 受控并发
 
