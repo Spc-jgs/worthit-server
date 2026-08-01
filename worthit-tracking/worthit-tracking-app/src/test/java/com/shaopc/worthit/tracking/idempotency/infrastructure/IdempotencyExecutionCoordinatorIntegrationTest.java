@@ -189,6 +189,22 @@ class IdempotencyExecutionCoordinatorIntegrationTest {
     }
 
     @Test
+    void freshClaimWithSubMillisecondClockCompletes() {
+        CURRENT_INSTANT.set(
+                Instant.parse("2026-07-30T04:00:00.123456789Z"));
+        String key = UUID.randomUUID().toString();
+
+        TestResult result = execute(
+                key,
+                REQUEST_HASH,
+                () -> new TestResult("sub-millisecond"));
+
+        assertThat(result.value()).isEqualTo("sub-millisecond");
+        assertThat(status(key)).isEqualTo("SUCCEEDED");
+        assertThat(processingExpireAt(key)).isNull();
+    }
+
+    @Test
     void terminalBusinessFailureIsPersistedAndReplayed() {
         String key = UUID.randomUUID().toString();
         AtomicInteger executions = new AtomicInteger();

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 /**
  * 基于 MySQL 唯一键、行锁和租约 fencing 的幂等执行存储。
@@ -39,7 +40,7 @@ public class MybatisIdempotencyExecutionStore
             String idempotencyKey,
             String requestHash,
             Class<T> responseType) {
-        LocalDateTime now = LocalDateTime.now(trackingClock);
+        LocalDateTime now = databaseTime();
         LocalDateTime newLease =
                 now.plus(PROCESSING_TIMEOUT);
         IdempotencyDO candidate = candidate(
@@ -112,7 +113,7 @@ public class MybatisIdempotencyExecutionStore
                 responseJson,
                 IdempotencyRecordStatus.SUCCEEDED.code(),
                 IdempotencyRecordStatus.PROCESSING.code(),
-                LocalDateTime.now(trackingClock));
+                databaseTime());
         requireSingleCompletion(updated);
     }
 
@@ -140,7 +141,7 @@ public class MybatisIdempotencyExecutionStore
                 safeMessage,
                 IdempotencyRecordStatus.FAILED.code(),
                 IdempotencyRecordStatus.PROCESSING.code(),
-                LocalDateTime.now(trackingClock));
+                databaseTime());
         requireSingleCompletion(updated);
     }
 
@@ -259,6 +260,11 @@ public class MybatisIdempotencyExecutionStore
             throw new IllegalStateException(
                     "幂等租约已失效，拒绝提交业务结果");
         }
+    }
+
+    private LocalDateTime databaseTime() {
+        return LocalDateTime.now(trackingClock)
+                .truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static String boundedMessage(String value) {
