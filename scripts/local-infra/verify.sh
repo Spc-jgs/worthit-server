@@ -239,23 +239,46 @@ verify_nacos_instances() {
 
   for definition in "${services[@]}"; do
     IFS=: read -r service_name expected_port <<<"${definition}"
-    response="$(nacos_request \
+    if response="$(nacos_request \
+        --get \
+        --data-urlencode "namespaceId=${nacos_namespace}" \
+        --data-urlencode "groupName=${nacos_group}" \
+        --data-urlencode "serviceName=${service_name}" \
+        --data-urlencode "healthyOnly=true" \
+        "${nacos_server_base_url}/v3/admin/ns/instance/list" \
+        2>/dev/null)"; then
+      assert_json "Nacos returned a non-zero code for ${service_name}" \
+        '.code == 0' "${response}"
+      assert_json \
+        "Nacos does not have exactly one healthy ${service_name}:${expected_port} instance" \
+        --argjson expected_port "${expected_port}" \
+        '.data | length == 1
+          and .[0].healthy == true
+          and .[0].port == $expected_port' "${response}"
+      pass "Nacos Admin API healthy instance ${service_name}:${expected_port}"
+      continue
+    fi
+
+    [[ "${#nacos_auth_header[@]}" -eq 0 ]] \
+      || fail "Nacos Admin instance query failed for ${service_name}"
+    response="$(curl "${curl_flags[@]}" \
       --get \
       --data-urlencode "namespaceId=${nacos_namespace}" \
       --data-urlencode "groupName=${nacos_group}" \
       --data-urlencode "serviceName=${service_name}" \
       --data-urlencode "healthyOnly=true" \
-      "${nacos_server_base_url}/v3/admin/ns/instance/list")" \
-      || fail "Nacos instance query failed for ${service_name}"
-    assert_json "Nacos returned a non-zero code for ${service_name}" \
-      '.code == 0' "${response}"
+      "${nacos_server_base_url}/v1/ns/instance/list")" \
+      || fail "Nacos Client instance query failed for ${service_name}"
     assert_json \
-      "Nacos does not have exactly one healthy ${service_name}:${expected_port} instance" \
+      "Nacos Client API does not have exactly one healthy ${service_name}:${expected_port} instance" \
+      --arg expected_name "${nacos_group}@@${service_name}" \
       --argjson expected_port "${expected_port}" \
-      '.data | length == 1
-        and .[0].healthy == true
-        and .[0].port == $expected_port' "${response}"
-    pass "Nacos healthy instance ${service_name}:${expected_port}"
+      '.name == $expected_name
+        and ([.hosts[] | select(
+          .healthy == true
+          and .enabled == true
+          and .port == $expected_port)] | length) == 1' "${response}"
+    pass "Nacos Client API healthy instance ${service_name}:${expected_port}"
   done
 }
 
@@ -326,8 +349,48 @@ restore_probe_config() {
   if [[ "${probe_config_changed}" != true || -z "${original_probe_message}" ]]; then
     return
   fi
-  WORTHIT_PROBE_MESSAGE="${original_probe_message}" \
-    "${script_dir}/nacos-config.sh" set-probe-message >/dev/null 2>&1 || true
+  set_probe_message_value "${original_probe_message}" \
+    >/dev/null 2>&1 || true
+}
+
+set_probe_message_value() {
+  local probe_message="$1"
+  if [[ "${#nacos_auth_header[@]}" -gt 0 ]]; then
+    WORTHIT_PROBE_MESSAGE="${probe_message}" \
+      "${script_dir}/nacos-config.sh" set-probe-message >/dev/null
+    return
+  fi
+
+  local content
+  local updated_content
+  local response
+  content="$(curl "${curl_flags[@]}" \
+    --get \
+    --data-urlencode 'dataId=worthit-common.yaml' \
+    --data-urlencode "group=${nacos_group}" \
+    --data-urlencode "tenant=${nacos_namespace}" \
+    "${nacos_server_base_url}/v1/cs/configs")" \
+    || fail "Nacos Client config read failed"
+  [[ "$(grep -c '^[[:space:]]*probe-message:' <<<"${content}")" -eq 1 ]] \
+    || fail "worthit-common.yaml must contain exactly one probe-message"
+  updated_content="$(awk -v value="${probe_message}" '
+    /^[[:space:]]*probe-message:/ {
+      sub(/probe-message:.*/, "probe-message: " value)
+    }
+    { print }
+  ' <<<"${content}")"
+  updated_content+=$'\n'
+  response="$(curl "${curl_flags[@]}" \
+    --request POST \
+    --data-urlencode 'dataId=worthit-common.yaml' \
+    --data-urlencode "group=${nacos_group}" \
+    --data-urlencode "tenant=${nacos_namespace}" \
+    --data-urlencode "content=${updated_content}" \
+    --data-urlencode 'type=yaml' \
+    "${nacos_server_base_url}/v1/cs/configs")" \
+    || fail "Nacos Client config publish failed"
+  [[ "${response}" == "true" ]] \
+    || fail "Nacos Client config publish was rejected"
 }
 
 verify_config_refresh() {
@@ -344,8 +407,7 @@ verify_config_refresh() {
   [[ -n "${original_probe_message}" ]] \
     || fail "local worthit-common template has no probe-message"
 
-  WORTHIT_PROBE_MESSAGE="${updated_probe_message}" \
-    "${script_dir}/nacos-config.sh" set-probe-message >/dev/null \
+  set_probe_message_value "${updated_probe_message}" >/dev/null \
     || fail "Nacos probe-message update failed"
   probe_config_changed=true
 
