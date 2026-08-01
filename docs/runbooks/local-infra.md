@@ -160,6 +160,7 @@ curl --fail-with-body \
 scripts/local-infra/nacos-config.sh services
 scripts/local-infra/verify.sh
 scripts/local-infra/verify-public-api.sh
+scripts/local-infra/verify-release-candidate.sh
 bash scripts/verify-flyway-source-parity.sh
 ```
 
@@ -182,6 +183,16 @@ shell 提供 `WORTHIT_AUTH_LOCAL_USERNAME`、`WORTHIT_AUTH_LOCAL_PASSWORD`。它
 `Authorization: Bearer`，验证伪造内部 Token 被拒绝、密码登录、当前用户、分类创建、
 重命名、查询和删除。脚本生成唯一分类名，并在失败退出时尽力通过公网接口清理本次
 创建且未被引用的分类；Token 和密码不会写入输出。
+
+`verify-release-candidate.sh` 是发布候选公网链路门禁，除主账号变量外还要求
+`WORTHIT_AUTH_SECONDARY_USERNAME`、`WORTHIT_AUTH_SECONDARY_PASSWORD` 以及当前
+Reminder 应用数据库账号。脚本覆盖 Item/Subscription/Wish、Dashboard、Reminder、
+M2 处置/替换/复盘、幂等冲突与重放、两个用户的 404 隔离、三对象窗口内恢复和 Wish
+并发购买收敛。产品用例“已有到期 PENDING”无法在一天任意时刻只靠业务日期稳定构造，
+因此脚本先经公网创建明日 Reminder，等待 Outbox 收敛，再把本轮唯一实例的
+`remind_at` 精确调整到当前时刻之前；该数据库写入只允许独立本地测试账号，不进入普通
+Maven/CI，也不提供生产或公网改时钟入口。脚本退出时通过公网精确逻辑删除本轮业务对象，
+不清库、不操作容器。
 
 ### 受控并发
 
@@ -212,11 +223,33 @@ starvation，不能写成“完全非阻塞”。
 
 ## 停止与清理
 
-只停止本次 shell 记录的 Java PID：
+只停止本次 shell 记录的 Java PID。推荐使用有命令行归属校验的有序停机门禁：
 
 ```bash
-kill "$GATEWAY_PID" "$TRACKING_PID" "$REMINDER_PID" "$AUTH_PID"
-wait "$GATEWAY_PID" "$TRACKING_PID" "$REMINDER_PID" "$AUTH_PID" 2>/dev/null || true
+export WORTHIT_GATEWAY_PID="$GATEWAY_PID"
+export WORTHIT_TRACKING_PID="$TRACKING_PID"
+export WORTHIT_REMINDER_PID="$REMINDER_PID"
+export WORTHIT_AUTH_PID="$AUTH_PID"
+scripts/local-infra/stop-apps-ordered.sh
+```
+
+脚本按 Gateway → Tracking → Reminder → Auth 逐个 SIGTERM，验证四端口释放、四个 Nacos
+实例注销并扫描本轮四份日志。Nacos Client 3.0.3 已知关闭期会记录 `NotifyCenter`
+`InterruptedException` 和 `NacosGracefulShutdownDelegate` 重复关闭空指针；脚本对此明确
+输出 WARN。macOS 缺少 Netty 原生 DNS provider 时的系统 DNS fallback 也单独输出 WARN；
+任何其他 ERROR 均阻塞。这些 WARN 不等于进程或注册失败，依赖升级需另行评审。
+
+也可以手工执行同一顺序：
+
+```bash
+kill "$GATEWAY_PID"
+wait "$GATEWAY_PID" 2>/dev/null || true
+kill "$TRACKING_PID"
+wait "$TRACKING_PID" 2>/dev/null || true
+kill "$REMINDER_PID"
+wait "$REMINDER_PID" 2>/dev/null || true
+kill "$AUTH_PID"
+wait "$AUTH_PID" 2>/dev/null || true
 ```
 
 不得使用 `pkill java`。确认端口释放后，临时日志可以移到废纸篓；不要提交。
