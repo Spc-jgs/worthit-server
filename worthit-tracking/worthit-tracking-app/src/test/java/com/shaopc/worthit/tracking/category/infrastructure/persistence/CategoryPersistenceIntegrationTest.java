@@ -27,6 +27,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -106,6 +112,102 @@ class CategoryPersistenceIntegrationTest {
                 Integer.class,
                 USER_ID,
                 "数码")).isEqualTo(2);
+    }
+
+    @Test
+    void renamesCustomCategoryAndIncrementsVersion() {
+        Category created = categoryService.create("数码");
+
+        Category renamed = categoryService.rename(
+                created.id(), "  办公设备  ");
+
+        CategoryDO persisted = categoryMapper.selectById(created.id());
+        assertThat(renamed.name()).isEqualTo("办公设备");
+        assertThat(persisted.getName()).isEqualTo("办公设备");
+        assertThat(persisted.getVersion()).isEqualTo(2L);
+        assertThat(persisted.getUpdateBy()).isEqualTo(USER_ID);
+        assertThat(persisted.getUpdateTime())
+                .isEqualTo(LocalDateTime.now(trackingClock));
+    }
+
+    @Test
+    void renameToExistingActiveNameConflictsAndKeepsOriginalName() {
+        Category source = categoryService.create("数码");
+        categoryService.create("办公");
+
+        assertThatThrownBy(() -> categoryService.rename(
+                source.id(), "办公"))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("BIZ_CONFLICT"));
+
+        assertThat(categoryMapper.selectById(source.id()).getName())
+                .isEqualTo("数码");
+    }
+
+    @Test
+    void concurrentRenamesToSameNameAllowExactlyOneWinner()
+            throws Exception {
+        Category first = categoryService.create("数码");
+        Category second = categoryService.create("办公");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<RenameResult> firstResult = executor.submit(
+                    () -> renameAfterBarrier(first.id(), ready, start));
+            Future<RenameResult> secondResult = executor.submit(
+                    () -> renameAfterBarrier(second.id(), ready, start));
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            List<RenameResult> results = List.of(
+                    firstResult.get(5, TimeUnit.SECONDS),
+                    secondResult.get(5, TimeUnit.SECONDS));
+
+            assertThat(results).filteredOn(RenameResult::succeeded)
+                    .hasSize(1);
+            assertThat(results).filteredOn(result -> !result.succeeded())
+                    .singleElement()
+                    .extracting(RenameResult::failure)
+                    .isInstanceOfSatisfying(
+                            BusinessException.class,
+                            exception -> assertThat(exception.code())
+                                    .isEqualTo("BIZ_CONFLICT"));
+            assertThat(jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*)
+                    FROM trk_category
+                    WHERE user_id = ?
+                      AND name = ?
+                      AND del_flag = 0
+                    """,
+                    Integer.class,
+                    USER_ID,
+                    "统一名称")).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(
+                    5, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void systemCategoryCannotBeRenamed() {
+        CategoryDO systemCategory =
+                insertCategory("未分类", "UNCATEGORIZED");
+
+        assertThatThrownBy(() -> categoryService.rename(
+                systemCategory.getId(), "其他"))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo(
+                                        "BIZ_CATEGORY_SYSTEM_PROTECTED"));
+
+        assertThat(categoryMapper.selectById(systemCategory.getId())
+                .getName()).isEqualTo("未分类");
     }
 
     @Test
@@ -194,6 +296,28 @@ class CategoryPersistenceIntegrationTest {
         category.setDelFlag(false);
         categoryMapper.insert(category);
         return category;
+    }
+
+    private RenameResult renameAfterBarrier(
+            long categoryId,
+            CountDownLatch ready,
+            CountDownLatch start) {
+        ready.countDown();
+        try {
+            if (!start.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("等待并发重命名开始超时");
+            }
+            categoryService.rename(categoryId, "统一名称");
+            return new RenameResult(true, null);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return new RenameResult(false, exception);
+        } catch (RuntimeException exception) {
+            return new RenameResult(false, exception);
+        }
+    }
+
+    private record RenameResult(boolean succeeded, Throwable failure) {
     }
 
     private void insertBusinessReference(

@@ -159,6 +159,7 @@ curl --fail-with-body \
 ```bash
 scripts/local-infra/nacos-config.sh services
 scripts/local-infra/verify.sh
+scripts/local-infra/verify-public-api.sh
 bash scripts/verify-flyway-source-parity.sh
 ```
 
@@ -174,6 +175,13 @@ bash scripts/verify-flyway-source-parity.sh
 - 更新 Nacos `probe-message` 后 Tracking 刷新，并恢复原配置；
 - 响应和 `WORTHIT_LOG_DIR` 中没有配置的数据库密码、Redis 密码、JWT Secret
   或 Same-Token 值。
+
+`verify-public-api.sh` 是显式真实业务链路门禁，要求四服务已经就绪，并要求当前
+shell 提供 `WORTHIT_AUTH_LOCAL_USERNAME`、`WORTHIT_AUTH_LOCAL_PASSWORD`。它不会
+启动或停止容器，不会初始化或清空数据库；脚本只经 Gateway 使用
+`Authorization: Bearer`，验证伪造内部 Token 被拒绝、密码登录、当前用户、分类创建、
+重命名、查询和删除。脚本生成唯一分类名，并在失败退出时尽力通过公网接口清理本次
+创建且未被引用的分类；Token 和密码不会写入输出。
 
 ### 受控并发
 

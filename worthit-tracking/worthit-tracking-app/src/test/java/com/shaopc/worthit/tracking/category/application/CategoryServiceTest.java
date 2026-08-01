@@ -79,6 +79,57 @@ class CategoryServiceTest {
     }
 
     @Test
+    void renamesCustomCategoryWithTrimmedName() {
+        repository.categories.add(
+                new Category(2L, USER_ID, "数码", null));
+
+        Category renamed = service.rename(2L, "  办公设备  ");
+
+        assertThat(renamed.name()).isEqualTo("办公设备");
+        assertThat(repository.lockedCategoryId).isEqualTo(2L);
+    }
+
+    @Test
+    void rejectsRenamingSystemCategory() {
+        repository.categories.add(
+                new Category(
+                        1L, USER_ID, "未分类",
+                        CategorySystemCode.UNCATEGORIZED));
+
+        assertThatThrownBy(() -> service.rename(1L, "其他"))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(CategoryErrorCode
+                                        .BIZ_CATEGORY_SYSTEM_PROTECTED));
+    }
+
+    @Test
+    void hidesOtherUsersCategoryWhenRenaming() {
+        repository.categories.add(
+                new Category(3L, 2002L, "他人分类", null));
+
+        assertThatThrownBy(() -> service.rename(3L, "其他"))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(CommonWebErrorCode.RES_NOT_FOUND));
+    }
+
+    @Test
+    void mapsDuplicateRenameToBusinessConflict() {
+        repository.categories.addAll(List.of(
+                new Category(2L, USER_ID, "数码", null),
+                new Category(3L, USER_ID, "办公", null)));
+
+        assertThatThrownBy(() -> service.rename(2L, "办公"))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo("BIZ_CONFLICT"));
+    }
+
+    @Test
     void rejectsDeletingSystemCategory() {
         repository.categories.add(
                 new Category(
@@ -184,6 +235,27 @@ class CategoryServiceTest {
                     new Category(nextId++, userId, name, null);
             categories.add(created);
             return created;
+        }
+
+        @Override
+        public Category rename(
+                long categoryId, long userId, String name) {
+            if (categories.stream()
+                    .anyMatch(category -> category.userId() == userId
+                            && category.id() != categoryId
+                            && category.name().equals(name))) {
+                throw new DuplicateKeyException("duplicate");
+            }
+            Category existing = findByIdAndUserId(categoryId, userId)
+                    .orElseThrow();
+            Category renamed = new Category(
+                    existing.id(),
+                    existing.userId(),
+                    name,
+                    existing.systemCode());
+            categories.remove(existing);
+            categories.add(renamed);
+            return renamed;
         }
 
         @Override

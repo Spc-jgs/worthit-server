@@ -1,5 +1,6 @@
 package com.shaopc.worthit.gateway.security;
 
+import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.reactor.filter.SaReactorFilter;
 import cn.dev33.satoken.reactor.spring.SaTokenContextRegister;
@@ -39,6 +40,8 @@ class GatewaySaTokenSecurityTest {
                     });
     private final SaReactorFilter filter =
             new GatewaySaTokenConfiguration().saReactorFilter(errorWriter);
+    private final BearerTokenNormalizationWebFilter bearerTokenFilter =
+            new BearerTokenNormalizationWebFilter("worthit-token");
 
     @BeforeAll
     static void initializeSaTokenRouteMatcher() {
@@ -111,6 +114,53 @@ class GatewaySaTokenSecurityTest {
                 .verifyComplete());
 
         assertThat(reached).isTrue();
+    }
+
+    @Test
+    void acceptsDocumentedBearerHeaderThroughAuthenticationChain() {
+        AtomicBoolean reached = new AtomicBoolean();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/items")
+                        .header(SecurityHeaderNames.AUTHORIZATION,
+                                "Bearer token-trusted")
+                        .build());
+
+        withExpectedToken("token-trusted", () -> StepVerifier.create(
+                        bearerTokenFilter.filter(
+                                exchange,
+                                normalized -> filter.filter(
+                                        normalized,
+                                        ignored -> {
+                                            reached.set(true);
+                                            return Mono.empty();
+                                        })))
+                .verifyComplete());
+
+        assertThat(reached).isTrue();
+    }
+
+    @Test
+    void forgedInternalTokenCannotReplaceMissingAuthorization() {
+        AtomicBoolean reached = new AtomicBoolean();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/items")
+                        .header("worthit-token", "token-trusted")
+                        .build());
+
+        withExpectedToken("token-trusted", () -> StepVerifier.create(
+                        bearerTokenFilter.filter(
+                                exchange,
+                                normalized -> filter.filter(
+                                        normalized,
+                                        ignored -> {
+                                            reached.set(true);
+                                            return Mono.empty();
+                                        })))
+                .verifyComplete());
+
+        assertThat(reached).isFalse();
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
@@ -207,6 +257,31 @@ class GatewaySaTokenSecurityTest {
             assertion.run();
         } finally {
             StpUtil.setStpLogic(original);
+        }
+    }
+
+    private static void withExpectedToken(
+            String expectedToken, Runnable assertion) {
+        StpLogic original = StpUtil.getStpLogic();
+        String originalTokenName = SaManager.getConfig().getTokenName();
+        SaManager.getConfig().setTokenName("worthit-token");
+        StpUtil.setStpLogic(new StpLogic("login") {
+            @Override
+            public void checkLogin() {
+                if (!expectedToken.equals(getTokenValue())) {
+                    throw NotLoginException.newInstance(
+                            getLoginType(),
+                            NotLoginException.INVALID_TOKEN,
+                            NotLoginException.INVALID_TOKEN_MESSAGE,
+                            getTokenValue());
+                }
+            }
+        });
+        try {
+            assertion.run();
+        } finally {
+            StpUtil.setStpLogic(original);
+            SaManager.getConfig().setTokenName(originalTokenName);
         }
     }
 }

@@ -56,6 +56,16 @@ public interface CategoryRepository {
     Category create(long userId, String name);
 
     /**
+     * 更新有效自定义分类名称并推进版本。
+     *
+     * @param categoryId 分类标识
+     * @param userId 用户标识
+     * @param name 规范化后的新名称
+     * @return 已更新分类
+     */
+    Category rename(long categoryId, long userId, String name);
+
+    /**
      * 获取用户系统“未分类”，不存在时创建。
      *
      * @param userId 用户标识

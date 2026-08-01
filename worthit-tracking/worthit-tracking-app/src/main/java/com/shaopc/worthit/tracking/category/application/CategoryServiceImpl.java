@@ -61,6 +61,40 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     /**
+     * 重命名当前用户的自定义分类。
+     *
+     * @param categoryId 分类标识
+     * @param name 新分类名称
+     * @return 已重命名分类
+     */
+    @Transactional
+    @Override
+    public Category rename(long categoryId, String name) {
+        long userId = currentUserId();
+        Category category = categoryRepository
+                .findByIdAndUserIdForUpdate(categoryId, userId)
+                .orElseThrow(() -> new BusinessException(
+                        CommonWebErrorCode.RES_NOT_FOUND));
+        if (!category.deletable()) {
+            throw new BusinessException(
+                    CategoryErrorCode.BIZ_CATEGORY_SYSTEM_PROTECTED);
+        }
+        String normalizedName = name.trim();
+        if (category.name().equals(normalizedName)) {
+            return category;
+        }
+        try {
+            return categoryRepository.rename(
+                    categoryId, userId, normalizedName);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(
+                    CategoryErrorCode.BIZ_CONFLICT,
+                    CategoryErrorCode.BIZ_CONFLICT.defaultMessage(),
+                    exception);
+        }
+    }
+
+    /**
      * 删除当前用户未被引用的自定义分类。
      *
      * @param categoryId 分类标识
