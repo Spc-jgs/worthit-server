@@ -59,4 +59,12 @@ public interface WishRepository {
             long userId,
             long deletedVersion,
             LocalDateTime now);
+
+    /** 按删除后版本恢复到完整恢复协议选定的分类。 */
+    boolean restoreToCategory(
+            long wishId,
+            long userId,
+            long deletedVersion,
+            long categoryId,
+            LocalDateTime now);
 }

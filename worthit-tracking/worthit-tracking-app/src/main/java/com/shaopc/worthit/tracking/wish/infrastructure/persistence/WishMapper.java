@@ -217,4 +217,23 @@ public interface WishMapper extends BaseMapper<WishDO> {
             @Param("userId") long userId,
             @Param("deletedVersion") long deletedVersion,
             @Param("now") LocalDateTime now);
+
+    /** 完整恢复想买并原子写入有效目标分类。 */
+    @Update("""
+            UPDATE trk_wish
+            SET category_id = #{categoryId},
+                del_flag = 0, delete_time = NULL,
+                version = version + 1,
+                update_by = #{userId}, update_time = #{now}
+            WHERE id = #{wishId}
+              AND user_id = #{userId}
+              AND version = #{deletedVersion}
+              AND del_flag = 1
+            """)
+    int restoreByVersionToCategory(
+            @Param("wishId") long wishId,
+            @Param("userId") long userId,
+            @Param("deletedVersion") long deletedVersion,
+            @Param("categoryId") long categoryId,
+            @Param("now") LocalDateTime now);
 }

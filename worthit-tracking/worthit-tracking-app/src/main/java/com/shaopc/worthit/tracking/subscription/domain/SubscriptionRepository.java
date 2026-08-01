@@ -55,4 +55,12 @@ public interface SubscriptionRepository {
             long userId,
             long deletedVersion,
             LocalDateTime now);
+
+    /** 按删除后版本恢复到完整恢复协议选定的分类。 */
+    boolean restoreToCategory(
+            long subscriptionId,
+            long userId,
+            long deletedVersion,
+            long categoryId,
+            LocalDateTime now);
 }

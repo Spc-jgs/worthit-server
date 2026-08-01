@@ -139,6 +139,21 @@ public class MybatisWishRepository implements WishRepository {
                 wishId, userId, deletedVersion, now) == 1;
     }
 
+    @Override
+    public boolean restoreToCategory(
+            long wishId,
+            long userId,
+            long deletedVersion,
+            long categoryId,
+            LocalDateTime now) {
+        return mapper.restoreByVersionToCategory(
+                wishId,
+                userId,
+                deletedVersion,
+                categoryId,
+                now) == 1;
+    }
+
     private WishDO toData(Wish wish) {
         WishDO data = new WishDO();
         data.setUserId(wish.userId());

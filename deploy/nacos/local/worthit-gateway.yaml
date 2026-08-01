@@ -9,7 +9,7 @@ spring:
         - id: worthit-tracking-api
           uri: lb://worthit-tracking
           predicates:
-            - Path=/api/v1/categories/**,/api/v1/items/**,/api/v1/wishes/**,/api/v1/subscriptions/**,/api/v1/dashboard,/api/v1/lifecycle/**
+            - Path=/api/v1/categories/**,/api/v1/items/**,/api/v1/wishes/**,/api/v1/subscriptions/**,/api/v1/dashboard,/api/v1/lifecycle/**,/api/v1/recovery/**
         - id: worthit-reminder-api
           uri: lb://worthit-reminder
           predicates:

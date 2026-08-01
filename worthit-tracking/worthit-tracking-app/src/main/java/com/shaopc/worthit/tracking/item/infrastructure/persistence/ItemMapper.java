@@ -255,4 +255,23 @@ public interface ItemMapper extends BaseMapper<ItemDO> {
             @Param("userId") long userId,
             @Param("deletedVersion") long deletedVersion,
             @Param("now") LocalDateTime now);
+
+    /** 完整恢复物品并原子写入有效目标分类。 */
+    @Update("""
+            UPDATE trk_item
+            SET category_id = #{categoryId},
+                del_flag = 0, delete_time = NULL,
+                version = version + 1,
+                update_by = #{userId}, update_time = #{now}
+            WHERE id = #{itemId}
+              AND user_id = #{userId}
+              AND version = #{deletedVersion}
+              AND del_flag = 1
+            """)
+    int restoreByVersionToCategory(
+            @Param("itemId") long itemId,
+            @Param("userId") long userId,
+            @Param("deletedVersion") long deletedVersion,
+            @Param("categoryId") long categoryId,
+            @Param("now") LocalDateTime now);
 }
