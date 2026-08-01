@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,6 +60,22 @@ public class CategoryController {
             String traceId) {
         return ApiResponse.success(
                 toResponse(categoryService.create(request.name())),
+                traceId);
+    }
+
+    /**
+     * 重命名当前用户的自定义分类。
+     */
+    @PatchMapping("/{id}")
+    @Operation(summary = "重命名自定义分类")
+    public ApiResponse<CategoryResponse> rename(
+            @Positive @PathVariable("id") long categoryId,
+            @Valid @RequestBody UpdateCategoryRequest request,
+            @RequestAttribute(SecurityHeaderNames.TRACE_ID)
+            String traceId) {
+        return ApiResponse.success(
+                toResponse(categoryService.rename(
+                        categoryId, request.name())),
                 traceId);
     }
 

@@ -20,6 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -113,6 +114,43 @@ class CategoryControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code")
                         .value("VAL_INVALID_ARGUMENT"));
+    }
+
+    @Test
+    void renamesCategoryAndReturnsContract() throws Exception {
+        when(categoryService.rename(1939L, "办公设备")).thenReturn(
+                new Category(1939L, 1001L, "办公设备", null));
+
+        mockMvc.perform(patch("/api/v1/categories/1939")
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"办公设备"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value("1939"))
+                .andExpect(jsonPath("$.data.name").value("办公设备"))
+                .andExpect(jsonPath("$.data.deletable").value(true))
+                .andExpect(jsonPath("$.traceId").value(TRACE_ID));
+
+        verify(categoryService).rename(1939L, "办公设备");
+    }
+
+    @Test
+    void rejectsBlankRename() throws Exception {
+        mockMvc.perform(patch("/api/v1/categories/1939")
+                        .requestAttr(
+                                SecurityHeaderNames.TRACE_ID, TRACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":" "}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("VAL_INVALID_ARGUMENT"))
+                .andExpect(jsonPath("$.details[0].field")
+                        .value("name"));
     }
 
     @Test

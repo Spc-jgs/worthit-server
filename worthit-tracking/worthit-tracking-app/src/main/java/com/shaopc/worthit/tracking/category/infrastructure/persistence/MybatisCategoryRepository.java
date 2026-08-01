@@ -72,6 +72,29 @@ public class MybatisCategoryRepository implements CategoryRepository {
     }
 
     @Override
+    public Category rename(
+            long categoryId, long userId, String name) {
+        LocalDateTime now = LocalDateTime.now(trackingClock);
+        CategoryDO changes = new CategoryDO();
+        changes.setName(name);
+        changes.setUpdateBy(userId);
+        changes.setUpdateTime(now);
+        int updated = categoryMapper.update(
+                changes,
+                Wrappers.<CategoryDO>lambdaUpdate()
+                        .eq(CategoryDO::getId, categoryId)
+                        .eq(CategoryDO::getUserId, userId)
+                        .isNull(CategoryDO::getSystemCode)
+                        .eq(CategoryDO::getDelFlag, false)
+                        .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "分类重命名未更新唯一有效记录");
+        }
+        return new Category(categoryId, userId, name, null);
+    }
+
+    @Override
     public Category getOrCreateUncategorized(long userId) {
         Optional<Category> existing =
                 findBySystemCode(

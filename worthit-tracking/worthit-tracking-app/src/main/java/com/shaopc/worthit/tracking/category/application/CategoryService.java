@@ -20,6 +20,11 @@ public interface CategoryService {
     Category create(String name);
 
     /**
+     * 重命名当前用户的自定义分类。
+     */
+    Category rename(long categoryId, String name);
+
+    /**
      * 删除当前用户未被引用的自定义分类。
      */
     void delete(long categoryId);
