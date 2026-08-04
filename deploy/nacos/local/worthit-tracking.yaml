@@ -3,3 +3,6 @@ worthit:
     reminder:
       connect-timeout: 2s
       read-timeout: 5s
+  data-export:
+    max-records: 10000
+    max-fragment-bytes: 8388608

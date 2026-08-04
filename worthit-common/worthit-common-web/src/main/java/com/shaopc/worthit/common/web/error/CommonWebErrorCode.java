@@ -25,7 +25,18 @@ public enum CommonWebErrorCode implements ErrorCode {
     /**
      * 下游服务或依赖不可用。
      */
-    SYS_UPSTREAM("SYS_UPSTREAM", "下游服务暂时不可用");
+    SYS_UPSTREAM("SYS_UPSTREAM", "下游服务暂时不可用"),
+
+    /**
+     * 导出记录、分片或归档超过冻结上限。
+     */
+    DATA_EXPORT_LIMIT_EXCEEDED(
+            "DATA_EXPORT_LIMIT_EXCEEDED", "导出数据超过容量上限"),
+
+    /**
+     * 当前用户已有导出或服务实例并发槽已满。
+     */
+    DATA_EXPORT_BUSY("DATA_EXPORT_BUSY", "数据导出繁忙，请稍后重试");
 
     private final String code;
     private final String defaultMessage;

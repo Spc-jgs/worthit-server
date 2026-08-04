@@ -73,10 +73,21 @@ class NacosTemplateContractTest {
         assertThat(Set.of(common, gateway, tracking, reminder))
                 .allSatisfy(source -> assertThat(source.getProperty(rotationEnabled)).isNull());
 
+        assertThat(auth.getProperty("worthit.clients.tracking.read-timeout"))
+                .isEqualTo("15s");
+        assertThat(auth.getProperty("worthit.clients.reminder.read-timeout"))
+                .isEqualTo("15s");
+        assertThat(auth.getProperty("worthit.data-export.max-concurrent"))
+                .isEqualTo(2);
+
         assertThat(tracking.getProperty("worthit.clients.reminder.connect-timeout"))
                 .isNotNull();
         assertThat(tracking.getProperty("worthit.clients.reminder.read-timeout"))
                 .isNotNull();
+        assertThat(tracking.getProperty("worthit.data-export.max-records"))
+                .isEqualTo(10000);
+        assertThat(reminder.getProperty("worthit.data-export.max-records"))
+                .isEqualTo(10000);
         assertThat(read(templateDirectory.resolve("worthit-reminder.yaml")))
                 .doesNotContainIgnoringCase("tracking", "datasource", "task", "job");
     }

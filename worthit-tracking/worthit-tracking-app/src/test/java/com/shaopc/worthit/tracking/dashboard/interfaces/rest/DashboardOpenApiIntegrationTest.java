@@ -106,6 +106,18 @@ class DashboardOpenApiIntegrationTest {
     }
 
     @Test
+    void publishesDataExportOnlyInInternalGroup() throws Exception {
+        JsonNode publicDocument =
+                getOpenApiDocument("/v3/api-docs/public");
+        JsonNode internalDocument =
+                getOpenApiDocument("/v3/api-docs/internal");
+        String path = "/internal/v1/tracking/users/{userId}/data-export";
+
+        assertThat(publicDocument.path("paths").has(path)).isFalse();
+        assertThat(internalDocument.path("paths").has(path)).isTrue();
+    }
+
+    @Test
     void publishesLifecyclePathsAndSchemasOnlyInPublicGroup()
             throws Exception {
         JsonNode publicDocument =

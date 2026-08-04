@@ -195,6 +195,11 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>worthit-tracking-client</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>worthit-reminder-client</artifactId>
                 <version>${revision}</version>
             </dependency>

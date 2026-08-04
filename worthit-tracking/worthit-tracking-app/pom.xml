@@ -21,6 +21,10 @@
         </dependency>
         <dependency>
             <groupId>com.shaopc.worthit</groupId>
+            <artifactId>worthit-tracking-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.shaopc.worthit</groupId>
             <artifactId>worthit-common-security</artifactId>
         </dependency>
         <dependency>
