@@ -12,6 +12,7 @@
     <packaging>pom</packaging>
     <name>WorthIt Tracking</name>
     <modules>
+        <module>worthit-tracking-client</module>
         <module>worthit-tracking-app</module>
     </modules>
 </project>

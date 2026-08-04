@@ -12,13 +12,16 @@ import java.util.Objects;
 public final class DefaultErrorHttpStatusResolver
         implements ErrorHttpStatusResolver {
 
-    private static final Map<String, HttpStatus> STATUS_BY_CODE = Map.of(
-            "VAL_INVALID_ARGUMENT", HttpStatus.BAD_REQUEST,
-            "RES_NOT_FOUND", HttpStatus.NOT_FOUND,
-            "AUTH_UNAUTHORIZED", HttpStatus.UNAUTHORIZED,
-            "AUTH_FORBIDDEN", HttpStatus.FORBIDDEN,
-            "SYS_ERROR", HttpStatus.INTERNAL_SERVER_ERROR,
-            "SYS_UPSTREAM", HttpStatus.BAD_GATEWAY);
+    private static final Map<String, HttpStatus> STATUS_BY_CODE = Map.ofEntries(
+            Map.entry("VAL_INVALID_ARGUMENT", HttpStatus.BAD_REQUEST),
+            Map.entry("RES_NOT_FOUND", HttpStatus.NOT_FOUND),
+            Map.entry("AUTH_UNAUTHORIZED", HttpStatus.UNAUTHORIZED),
+            Map.entry("AUTH_FORBIDDEN", HttpStatus.FORBIDDEN),
+            Map.entry("SYS_ERROR", HttpStatus.INTERNAL_SERVER_ERROR),
+            Map.entry("SYS_UPSTREAM", HttpStatus.BAD_GATEWAY),
+            Map.entry("DATA_EXPORT_LIMIT_EXCEEDED",
+                    HttpStatus.PAYLOAD_TOO_LARGE),
+            Map.entry("DATA_EXPORT_BUSY", HttpStatus.TOO_MANY_REQUESTS));
 
     @Override
     public HttpStatus resolve(ErrorCode errorCode) {

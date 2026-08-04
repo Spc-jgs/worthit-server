@@ -1,4 +1,15 @@
 worthit:
+  clients:
+    tracking:
+      connect-timeout: 2s
+      read-timeout: 15s
+    reminder:
+      connect-timeout: 2s
+      read-timeout: 15s
+  data-export:
+    max-concurrent: 2
+    max-fragment-bytes: 8388608
+    max-archive-bytes: 20971520
   security:
     same-token:
       rotation:

@@ -1,2 +1,4 @@
-# No Reminder-specific local override is required in Phase 0.
-{}
+worthit:
+  data-export:
+    max-records: 10000
+    max-fragment-bytes: 8388608
