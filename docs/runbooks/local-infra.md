@@ -165,6 +165,12 @@ scripts/local-infra/verify-m3-full-recovery.sh
 bash scripts/verify-flyway-source-parity.sh
 ```
 
+`nacos-config.sh services` 是注册状态快照，不是四服务就绪门禁。Nacos v3 对尚未注册
+的服务返回特定 404 时，脚本会把它明确显示为
+`0 healthy instance(s) (not registered)`，并继续列出其余服务；其他 404、5xx、
+传输错误、非零业务码或畸形响应仍立即失败。四服务必须全部健康的阻塞判定继续由
+紧随其后的 `verify.sh` 和应用 readiness/真实业务链路承担。
+
 `verify.sh` 必须完整通过，不能通过缺省变量或空成功跳过。它验证：
 
 - Nacos 服务端与控制台 readiness；
