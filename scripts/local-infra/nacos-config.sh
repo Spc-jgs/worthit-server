@@ -78,6 +78,21 @@ server_request() {
   fi
 }
 
+server_request_with_http_status() {
+  local status_format=$'\n%{http_code}'
+  local status_flags=(
+    --silent
+    --show-error
+    --write-out "${status_format}"
+  )
+
+  if [[ "${#auth_header[@]}" -gt 0 ]]; then
+    curl "${status_flags[@]}" "${auth_header[@]}" "$@"
+  else
+    curl "${status_flags[@]}" "$@"
+  fi
+}
+
 check_readiness() {
   local server_response
   local console_response
@@ -221,16 +236,56 @@ set_probe_message() {
 list_service() {
   local service_name="$1"
   local response
+  local response_body
+  local http_status
   local healthy_count
-  response="$(server_request \
-    --get \
-    --data-urlencode "namespaceId=${nacos_namespace}" \
-    --data-urlencode "groupName=${nacos_group}" \
-    --data-urlencode "serviceName=${service_name}" \
-    --data-urlencode "healthyOnly=true" \
-    "${nacos_server_base_url}/v3/admin/ns/instance/list")"
-  check_result_code "List ${service_name}" "${response}"
-  healthy_count="$(jq -er '.data | length' <<<"${response}")"
+
+  if ! response="$(server_request_with_http_status \
+      --get \
+      --data-urlencode "namespaceId=${nacos_namespace}" \
+      --data-urlencode "groupName=${nacos_group}" \
+      --data-urlencode "serviceName=${service_name}" \
+      --data-urlencode "healthyOnly=true" \
+      "${nacos_server_base_url}/v3/admin/ns/instance/list")"; then
+    printf 'List %s failed: request transport error\n' \
+      "${service_name}" >&2
+    exit 1
+  fi
+
+  http_status="${response##*$'\n'}"
+  response_body="${response%$'\n'*}"
+  if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
+    printf 'List %s failed: missing HTTP status\n' \
+      "${service_name}" >&2
+    exit 1
+  fi
+
+  if [[ "${http_status}" == 404 ]] \
+      && jq -e \
+        --arg service "${nacos_group}@@${service_name}" \
+        '.code == 30000
+          and .message == "server error"
+          and .data == ("service " + $service + " is not found!")' \
+        >/dev/null <<<"${response_body}"; then
+    printf '%s: 0 healthy instance(s) (not registered)\n' \
+      "${service_name}"
+    return
+  fi
+
+  if [[ "${http_status}" != 200 ]]; then
+    printf 'List %s failed: unexpected HTTP %s response\n' \
+      "${service_name}" "${http_status}" >&2
+    exit 1
+  fi
+
+  check_result_code "List ${service_name}" "${response_body}"
+  if ! jq -e '(.data | type) == "array"' \
+      >/dev/null <<<"${response_body}"; then
+    printf 'List %s failed: response data is not an array\n' \
+      "${service_name}" >&2
+    exit 1
+  fi
+  healthy_count="$(jq -er '.data | length' <<<"${response_body}")"
   printf '%s: %s healthy instance(s)\n' "${service_name}" "${healthy_count}"
 }
 
