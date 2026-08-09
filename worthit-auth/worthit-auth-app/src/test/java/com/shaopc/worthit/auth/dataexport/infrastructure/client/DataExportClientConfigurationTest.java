@@ -4,8 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.http.trace.TraceIdProvider;
 import com.shaopc.worthit.common.security.header.SecurityHeaderNames;
 import com.shaopc.worthit.common.security.sametoken.SameTokenProvider;
+import com.shaopc.worthit.reminder.client.api.ReminderAccountCancellationClient;
 import com.shaopc.worthit.reminder.client.api.ReminderDataExportClient;
+import com.shaopc.worthit.reminder.client.command.ReminderAccountCancellationCommand;
+import com.shaopc.worthit.tracking.client.api.TrackingAccountCancellationClient;
 import com.shaopc.worthit.tracking.client.api.TrackingDataExportClient;
+import com.shaopc.worthit.tracking.client.command.TrackingAccountCancellationCommand;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +42,12 @@ class DataExportClientConfigurationTest {
         server.createContext(
                 "/internal/v1/reminders/users/42/data-export",
                 exchange -> respond(exchange, reminderBody()));
+        server.createContext(
+                "/internal/v1/tracking/users/42/account-cancellation",
+                exchange -> respond(exchange, "{\"completed\":true}"));
+        server.createContext(
+                "/internal/v1/reminders/users/42/account-cancellation",
+                exchange -> respond(exchange, "{\"completed\":true}"));
         server.start();
         String target = "127.0.0.1:" + server.getAddress().getPort();
         contextRunner = new ApplicationContextRunner()
@@ -61,6 +71,10 @@ class DataExportClientConfigurationTest {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(TrackingDataExportClient.class);
             assertThat(context).hasSingleBean(ReminderDataExportClient.class);
+            assertThat(context).hasSingleBean(
+                    TrackingAccountCancellationClient.class);
+            assertThat(context).hasSingleBean(
+                    ReminderAccountCancellationClient.class);
             assertThat(context.getBean(
                             TrackingDataExportClientProperties.class)
                     .readTimeout()).isEqualTo(java.time.Duration.ofSeconds(15));
@@ -72,19 +86,42 @@ class DataExportClientConfigurationTest {
                     .exportUserData(42L).userId()).isEqualTo("42");
             assertThat(context.getBean(ReminderDataExportClient.class)
                     .exportUserData(42L).userId()).isEqualTo("42");
+            assertThat(context.getBean(TrackingAccountCancellationClient.class)
+                    .cancelAccount(
+                            42L,
+                            "9001",
+                            new TrackingAccountCancellationCommand("9001"))
+                    .completed()).isTrue();
+            assertThat(context.getBean(ReminderAccountCancellationClient.class)
+                    .cancelAccount(
+                            42L,
+                            "9001",
+                            new ReminderAccountCancellationCommand("9001"))
+                    .completed()).isTrue();
             assertThat(requests).extracting(CapturedRequest::path)
                     .containsExactly(
                             "/internal/v1/tracking/users/42/data-export",
-                            "/internal/v1/reminders/users/42/data-export");
+                            "/internal/v1/reminders/users/42/data-export",
+                            "/internal/v1/tracking/users/42/account-cancellation",
+                            "/internal/v1/reminders/users/42/account-cancellation");
             assertThat(requests).allSatisfy(request -> {
                 assertThat(request.sameToken()).isEqualTo("same-token-test");
                 assertThat(request.callerService()).isEqualTo("worthit-auth");
                 assertThat(request.traceId()).isEqualTo("trace-test");
             });
+            assertThat(requests.subList(2, 4))
+                    .allSatisfy(request -> {
+                        assertThat(request.idempotencyKey()).isEqualTo("9001");
+                        assertThat(request.body())
+                                .contains("\"cancellationId\":\"9001\"");
+                    });
         });
     }
 
     private void respond(HttpExchange exchange, String body) throws IOException {
+        String requestBody = new String(
+                exchange.getRequestBody().readAllBytes(),
+                StandardCharsets.UTF_8);
         requests.add(new CapturedRequest(
                 exchange.getRequestURI().getPath(),
                 exchange.getRequestHeaders().getFirst(
@@ -92,7 +129,9 @@ class DataExportClientConfigurationTest {
                 exchange.getRequestHeaders().getFirst(
                         SecurityHeaderNames.CALLER_SERVICE),
                 exchange.getRequestHeaders().getFirst(
-                        SecurityHeaderNames.TRACE_ID)));
+                        SecurityHeaderNames.TRACE_ID),
+                exchange.getRequestHeaders().getFirst("X-Idempotency-Key"),
+                requestBody));
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, bytes.length);
@@ -132,6 +171,8 @@ class DataExportClientConfigurationTest {
             String path,
             String sameToken,
             String callerService,
-            String traceId) {
+            String traceId,
+            String idempotencyKey,
+            String body) {
     }
 }

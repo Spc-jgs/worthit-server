@@ -29,9 +29,10 @@ class AuthFlywayMigrationTest {
         MigrateResult result = flyway.migrate();
 
         assertThat(result.success).isTrue();
-        assertThat(result.targetSchemaVersion).hasToString("2");
+        assertThat(result.targetSchemaVersion).hasToString("3");
         assertThat(tableExists("auth_user")).isTrue();
         assertThat(tableExists("auth_password_credential")).isTrue();
+        assertThat(tableExists("auth_idempotency_record")).isTrue();
     }
 
     private boolean tableExists(String tableName) throws SQLException {

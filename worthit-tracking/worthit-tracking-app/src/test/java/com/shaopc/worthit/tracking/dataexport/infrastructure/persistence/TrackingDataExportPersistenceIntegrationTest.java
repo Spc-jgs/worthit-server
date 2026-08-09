@@ -3,6 +3,7 @@ package com.shaopc.worthit.tracking.dataexport.infrastructure.persistence;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.tracking.WorthItTrackingApplication;
+import com.shaopc.worthit.tracking.accountcancellation.application.TrackingAccountCancellationService;
 import com.shaopc.worthit.tracking.client.response.TrackingDataExportResponse;
 import com.shaopc.worthit.tracking.dataexport.application.TrackingDataExportService;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -44,6 +47,9 @@ class TrackingDataExportPersistenceIntegrationTest {
     private TrackingDataExportService service;
 
     @Autowired
+    private TrackingAccountCancellationService cancellationService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -67,6 +73,44 @@ class TrackingDataExportPersistenceIntegrationTest {
         jdbcTemplate.update("DELETE FROM trk_wish");
         jdbcTemplate.update("DELETE FROM trk_item");
         jdbcTemplate.update("DELETE FROM trk_category");
+        jdbcTemplate.update("DELETE FROM trk_user_write_fence");
+    }
+
+    @Test
+    void accountCancellationPhysicallyDeletesOnlyOwnedRows() {
+        insertCategory(101L, USER_ID, "活动分类", false);
+        insertCategory(999L, 2002L, "其他用户分类", false);
+        insertItem();
+        insertSubscription();
+        insertWish();
+        insertDisposal();
+        insertReplacement();
+        insertOutbox();
+        insertIdempotency();
+
+        assertThat(cancellationService.cancel(USER_ID, "9001").completed())
+                .isTrue();
+
+        assertThat(List.of(
+                "trk_item_replacement",
+                "trk_item_disposal",
+                "trk_outbox_event",
+                "trk_idempotency_record",
+                "trk_wish",
+                "trk_subscription",
+                "trk_item",
+                "trk_category"))
+                .allSatisfy(table -> assertThat(jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM " + table + " WHERE user_id = ?",
+                        Long.class,
+                        USER_ID)).isZero());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM trk_category WHERE user_id = 2002",
+                Long.class)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM trk_user_write_fence WHERE user_id = ?",
+                String.class,
+                USER_ID)).isEqualTo("CANCELLED");
     }
 
     @Test
@@ -221,5 +265,41 @@ class TrackingDataExportPersistenceIntegrationTest {
                 ) VALUES (601, ?, 201, 202, ?)
                 """,
                 USER_ID, NOW);
+    }
+
+    private void insertOutbox() {
+        jdbcTemplate.update(
+                """
+                INSERT INTO trk_outbox_event (
+                    id, event_id, aggregate_type, aggregate_id, user_id,
+                    source_version, event_type, payload_json, schema_version,
+                    status, retry_count, next_retry_at, create_time, update_time
+                ) VALUES (
+                    701, 'event-701', 'ITEM', 201, ?, 1,
+                    'REMINDER_RECONCILE', '{}', 1, 'PENDING', 0, ?, ?, ?)
+                """,
+                USER_ID,
+                NOW,
+                NOW,
+                NOW);
+    }
+
+    private void insertIdempotency() {
+        jdbcTemplate.update(
+                """
+                INSERT INTO trk_idempotency_record (
+                    id, user_id, operation_code, idempotency_key,
+                    request_hash, response_json, status,
+                    processing_expire_at, expires_at, create_time, update_time
+                ) VALUES (
+                    801, ?, 'ITEM_RETURN',
+                    '00000000-0000-0000-0000-000000000001',
+                    ?, '{}', 'SUCCEEDED', NULL, ?, ?, ?)
+                """,
+                USER_ID,
+                "a".repeat(64),
+                NOW.plusDays(1),
+                NOW,
+                NOW);
     }
 }

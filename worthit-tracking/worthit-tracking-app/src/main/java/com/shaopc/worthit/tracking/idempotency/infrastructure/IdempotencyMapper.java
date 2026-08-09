@@ -18,7 +18,7 @@ public interface IdempotencyMapper {
      * 首次调用占位；唯一键冲突时不覆盖原记录。
      */
     @Insert("""
-            INSERT IGNORE INTO trk_idempotency_record (
+            INSERT INTO trk_idempotency_record (
                 id, user_id, operation_code, idempotency_key,
                 request_hash, status, processing_expire_at,
                 expires_at, create_time, update_time
@@ -28,8 +28,26 @@ public interface IdempotencyMapper {
                 #{processingExpireAt}, #{expiresAt},
                 #{createTime}, #{updateTime}
             )
+            ON DUPLICATE KEY UPDATE
+                id = trk_idempotency_record.id
             """)
     int insertClaim(IdempotencyDO record);
+
+    /**
+     * 无锁探测既有记录；既有重放无需占用用户写围栏。
+     */
+    @Select("""
+            SELECT id
+            FROM trk_idempotency_record
+            WHERE user_id = #{userId}
+              AND operation_code = #{operationCode}
+              AND idempotency_key = #{idempotencyKey}
+            LIMIT 1
+            """)
+    Long selectExistingId(
+            @Param("userId") long userId,
+            @Param("operationCode") String operationCode,
+            @Param("idempotencyKey") String idempotencyKey);
 
     /**
      * 锁定指定幂等记录，串行重放与首次结果写入。

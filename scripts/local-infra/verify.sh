@@ -28,9 +28,9 @@ services=(
   "worthit-reminder:18083"
 )
 databases=(
-  "worthit_auth:WORTHIT_AUTH_DB_USERNAME:WORTHIT_AUTH_DB_PASSWORD"
-  "worthit_tracking:WORTHIT_TRACKING_DB_USERNAME:WORTHIT_TRACKING_DB_PASSWORD"
-  "worthit_reminder:WORTHIT_REMINDER_DB_USERNAME:WORTHIT_REMINDER_DB_PASSWORD"
+  "worthit_auth:3:WORTHIT_AUTH_DB_USERNAME:WORTHIT_AUTH_DB_PASSWORD"
+  "worthit_tracking:3:WORTHIT_TRACKING_DB_USERNAME:WORTHIT_TRACKING_DB_PASSWORD"
+  "worthit_reminder:2:WORTHIT_REMINDER_DB_USERNAME:WORTHIT_REMINDER_DB_PASSWORD"
 )
 
 fail() {
@@ -138,6 +138,7 @@ verify_nacos_readiness() {
 verify_mysql_migrations() {
   local definition
   local database_name
+  local expected_version
   local username_variable
   local password_variable
   local username
@@ -145,7 +146,7 @@ verify_mysql_migrations() {
   local result
 
   for definition in "${databases[@]}"; do
-    IFS=: read -r database_name username_variable password_variable \
+    IFS=: read -r database_name expected_version username_variable password_variable \
       <<<"${definition}"
     require_env "${username_variable}"
     require_env "${password_variable}"
@@ -162,12 +163,12 @@ verify_mysql_migrations() {
       --execute="
         SELECT COUNT(*)
         FROM flyway_schema_history
-        WHERE version = '1' AND success = 1;
+        WHERE version = '${expected_version}' AND success = 1;
       " "${database_name}" 2>/dev/null)" \
       || fail "MySQL database ${database_name} or Flyway history is not ready"
     [[ "${result}" =~ ^[1-9][0-9]*$ ]] \
-      || fail "MySQL database ${database_name} has no successful Flyway V1"
-    pass "MySQL ${database_name} Flyway V1"
+      || fail "MySQL database ${database_name} has no successful Flyway V${expected_version}"
+    pass "MySQL ${database_name} Flyway V${expected_version}"
   done
 }
 

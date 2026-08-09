@@ -89,6 +89,38 @@ class ReminderReconcileIntegrationTest {
         jdbcTemplate.update("DELETE FROM rem_command_log");
         jdbcTemplate.update("DELETE FROM rem_instance");
         jdbcTemplate.update("DELETE FROM rem_binding");
+        jdbcTemplate.update("DELETE FROM rem_user_write_fence");
+    }
+
+    @Test
+    void lateReconcileCannotRecreateDataAfterAccountCancellation() {
+        LocalDateTime now = LocalDateTime.of(2026, 7, 28, 10, 0);
+        jdbcTemplate.update(
+                """
+                INSERT INTO rem_user_write_fence (
+                    user_id, status, cancellation_id, completed_at,
+                    create_time, update_time
+                ) VALUES (?, 'CANCELLED', '9001', ?, ?, ?)
+                """,
+                USER_ID,
+                now,
+                now,
+                now);
+
+        assertThatThrownBy(() -> reconcileService.reconcile(
+                "event-after-cancellation",
+                command(
+                        1,
+                        LocalDate.of(2026, 8, 10),
+                        LocalDateTime.of(2026, 8, 3, 0, 0),
+                        true,
+                        ReminderOperationType.INITIAL_SYNC)))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.code())
+                                .isEqualTo("VAL_STATE_CONFLICT"));
+        assertThat(count("rem_binding")).isZero();
+        assertThat(count("rem_instance")).isZero();
+        assertThat(count("rem_command_log")).isZero();
     }
 
     @Test

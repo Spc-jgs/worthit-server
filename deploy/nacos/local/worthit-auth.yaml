@@ -10,6 +10,13 @@ worthit:
     max-concurrent: 2
     max-fragment-bytes: 8388608
     max-archive-bytes: 20971520
+  account-cancellation:
+    enabled: true
+    check-interval: 30s
+    lock-ttl: 25s
+    batch-size: 20
+    cleanup-batch-size: 100
+    audit-retention: 90d
   security:
     same-token:
       rotation:

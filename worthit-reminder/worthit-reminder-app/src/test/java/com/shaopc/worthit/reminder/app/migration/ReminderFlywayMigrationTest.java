@@ -20,7 +20,7 @@ class ReminderFlywayMigrationTest {
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4");
 
     @Test
-    void migratesVersionOneOnEmptyMysql84Database() throws SQLException {
+    void migratesVersionTwoOnEmptyMysql84Database() throws SQLException {
         Flyway flyway = Flyway.configure()
                 .dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
                 .locations("classpath:db/migration")
@@ -29,8 +29,9 @@ class ReminderFlywayMigrationTest {
         MigrateResult result = flyway.migrate();
 
         assertThat(result.success).isTrue();
-        assertThat(result.targetSchemaVersion).hasToString("1");
+        assertThat(result.targetSchemaVersion).hasToString("2");
         assertThat(tableExists("rem_binding")).isTrue();
+        assertThat(tableExists("rem_user_write_fence")).isTrue();
     }
 
     private boolean tableExists(String tableName) throws SQLException {

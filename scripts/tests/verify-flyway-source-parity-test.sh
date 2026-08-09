@@ -14,8 +14,13 @@ mkdir -p "${runtime_root}"
 
 runtime_files=(
   "worthit-auth/worthit-auth-app/src/main/resources/db/migration/V1__init_auth.sql"
+  "worthit-auth/worthit-auth-app/src/main/resources/db/migration/V2__add_password_credential.sql"
+  "worthit-auth/worthit-auth-app/src/main/resources/db/migration/V3__add_account_cancellation_execution.sql"
   "worthit-tracking/worthit-tracking-app/src/main/resources/db/migration/V1__init_tracking.sql"
+  "worthit-tracking/worthit-tracking-app/src/main/resources/db/migration/V2__add_item_lifecycle.sql"
+  "worthit-tracking/worthit-tracking-app/src/main/resources/db/migration/V3__add_user_write_fence.sql"
   "worthit-reminder/worthit-reminder-app/src/main/resources/db/migration/V1__init_reminder.sql"
+  "worthit-reminder/worthit-reminder-app/src/main/resources/db/migration/V2__add_user_write_fence.sql"
 )
 
 for relative_path in "${runtime_files[@]}"; do

@@ -28,4 +28,9 @@ public class SaTokenUserSession implements UserSession {
     public void logout() {
         StpUtil.logout();
     }
+
+    @Override
+    public void logoutUser(long userId) {
+        StpUtil.logout(userId);
+    }
 }

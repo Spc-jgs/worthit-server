@@ -2,6 +2,7 @@ package com.shaopc.worthit.reminder.app.reconcile.application;
 
 import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
+import com.shaopc.worthit.reminder.app.accountcancellation.application.ReminderUserWriteFence;
 import com.shaopc.worthit.reminder.app.reconcile.domain.ReminderErrorCode;
 import com.shaopc.worthit.reminder.client.command.ReconcileReminderCommand;
 import com.shaopc.worthit.reminder.client.model.ReconcileResultCode;
@@ -23,6 +24,7 @@ public class ReminderReconcileServiceImpl
 
     private static final int MAX_EVENT_ID_LENGTH = 64;
     private final ReminderReconcileRepository repository;
+    private final ReminderUserWriteFence userWriteFence;
     private final ReminderPayloadDigest payloadDigest;
     private final Clock reminderClock;
 
@@ -31,9 +33,11 @@ public class ReminderReconcileServiceImpl
      */
     public ReminderReconcileServiceImpl(
             ReminderReconcileRepository repository,
+            ReminderUserWriteFence userWriteFence,
             ReminderPayloadDigest payloadDigest,
             Clock reminderClock) {
         this.repository = repository;
+        this.userWriteFence = userWriteFence;
         this.payloadDigest = payloadDigest;
         this.reminderClock = reminderClock;
     }
@@ -47,6 +51,7 @@ public class ReminderReconcileServiceImpl
             String eventId,
             ReconcileReminderCommand command) {
         validateEventId(eventId);
+        userWriteFence.requireActive(command.userId());
         LocalDateTime now = LocalDateTime.now(reminderClock);
         String digest = payloadDigest.hash(command);
 

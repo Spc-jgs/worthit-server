@@ -3,6 +3,7 @@ package com.shaopc.worthit.tracking.idempotency.infrastructure;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shaopc.worthit.tracking.accountcancellation.application.TrackingUserWriteFence;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyClaim;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyStore;
 import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
@@ -27,6 +28,7 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
     private final IdempotencyMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock trackingClock;
+    private final TrackingUserWriteFence userWriteFence;
 
     @Override
     public <T> IdempotencyClaim<T> claim(
@@ -35,6 +37,7 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
             String idempotencyKey,
             String requestHash,
             Class<T> responseType) {
+        userWriteFence.requireActive(userId);
         LocalDateTime now = LocalDateTime.now(trackingClock);
         IdempotencyDO candidate = new IdempotencyDO();
         candidate.setId(IdWorker.getId());
@@ -49,7 +52,7 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
         candidate.setExpiresAt(now.plus(RECORD_RETENTION));
         candidate.setCreateTime(now);
         candidate.setUpdateTime(now);
-        int inserted = mapper.insertClaim(candidate);
+        mapper.insertClaim(candidate);
 
         IdempotencyDO locked = mapper.selectForUpdate(
                 userId, operation.code(), idempotencyKey);
@@ -57,7 +60,7 @@ public class MybatisIdempotencyStore implements IdempotencyStore {
             return new IdempotencyClaim<>(
                     IdempotencyClaim.Status.CONFLICT, null);
         }
-        if (inserted == 1) {
+        if (candidate.getId().equals(locked.getId())) {
             return new IdempotencyClaim<>(
                     IdempotencyClaim.Status.NEW, null);
         }

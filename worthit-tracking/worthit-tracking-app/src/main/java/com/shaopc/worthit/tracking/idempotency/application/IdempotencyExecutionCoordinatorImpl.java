@@ -3,6 +3,7 @@ package com.shaopc.worthit.tracking.idempotency.application;
 import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.core.error.ErrorCode;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
+import com.shaopc.worthit.tracking.accountcancellation.application.TrackingUserWriteFence;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -24,14 +25,18 @@ public class IdempotencyExecutionCoordinatorImpl
                     CommonWebErrorCode.SYS_UPSTREAM.code());
 
     private final IdempotencyExecutionStore store;
+    private final TrackingUserWriteFence userWriteFence;
     private final TransactionTemplate claimTransaction;
     private final TransactionTemplate businessTransaction;
 
     public IdempotencyExecutionCoordinatorImpl(
             IdempotencyExecutionStore store,
+            TrackingUserWriteFence userWriteFence,
             PlatformTransactionManager transactionManager) {
         this.store = Objects.requireNonNull(
                 store, "幂等执行存储不能为空");
+        this.userWriteFence = Objects.requireNonNull(
+                userWriteFence, "用户写围栏不能为空");
         Objects.requireNonNull(
                 transactionManager, "事务管理器不能为空");
         this.claimTransaction =
@@ -90,6 +95,7 @@ public class IdempotencyExecutionCoordinatorImpl
         try {
             return Objects.requireNonNull(
                     businessTransaction.execute(status -> {
+                        userWriteFence.requireActive(userId);
                         T response = Objects.requireNonNull(
                                 action.execute(),
                                 "幂等业务响应不能为空");

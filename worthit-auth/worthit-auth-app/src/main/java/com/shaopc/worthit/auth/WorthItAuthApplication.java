@@ -1,6 +1,7 @@
 package com.shaopc.worthit.auth;
 
 import com.shaopc.worthit.auth.dataexport.application.DataExportProperties;
+import com.shaopc.worthit.auth.accountcancellation.infrastructure.scheduler.AccountCancellationProperties;
 import com.shaopc.worthit.auth.dataexport.infrastructure.client.AuthServletTraceIdProvider;
 import com.shaopc.worthit.common.core.trace.TraceIdGenerator;
 import com.shaopc.worthit.common.http.trace.TraceIdProvider;
@@ -13,7 +14,10 @@ import org.springframework.context.annotation.Bean;
  * WorthIt 认证服务启动入口。
  */
 @SpringBootApplication
-@EnableConfigurationProperties(DataExportProperties.class)
+@EnableConfigurationProperties({
+        DataExportProperties.class,
+        AccountCancellationProperties.class
+})
 public class WorthItAuthApplication {
 
     /**

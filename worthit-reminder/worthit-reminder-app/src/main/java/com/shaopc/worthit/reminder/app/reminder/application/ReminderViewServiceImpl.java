@@ -4,6 +4,7 @@ import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.core.pagination.PageQuery;
 import com.shaopc.worthit.common.core.pagination.PageResult;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
+import com.shaopc.worthit.reminder.app.accountcancellation.application.ReminderUserWriteFence;
 import com.shaopc.worthit.reminder.app.reconcile.domain.ReminderErrorCode;
 import com.shaopc.worthit.reminder.app.security.CurrentUserProvider;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 public class ReminderViewServiceImpl implements ReminderViewService {
 
     private final ReminderViewRepository repository;
+    private final ReminderUserWriteFence userWriteFence;
     private final CurrentUserProvider currentUserProvider;
     private final Clock reminderClock;
 
@@ -27,9 +29,11 @@ public class ReminderViewServiceImpl implements ReminderViewService {
      */
     public ReminderViewServiceImpl(
             ReminderViewRepository repository,
+            ReminderUserWriteFence userWriteFence,
             CurrentUserProvider currentUserProvider,
             Clock reminderClock) {
         this.repository = repository;
+        this.userWriteFence = userWriteFence;
         this.currentUserProvider = currentUserProvider;
         this.reminderClock = reminderClock;
     }
@@ -67,6 +71,7 @@ public class ReminderViewServiceImpl implements ReminderViewService {
     @Override
     public void ignore(long reminderId) {
         long userId = currentUserId();
+        userWriteFence.requireActive(userId);
         LocalDateTime now = now();
         ReminderInstanceState instance =
                 repository.findByIdForUpdate(

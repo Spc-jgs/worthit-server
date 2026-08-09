@@ -83,6 +83,34 @@ class IdempotencyExecutionCoordinatorIntegrationTest {
                 Instant.parse("2026-07-30T04:00:00Z"));
         jdbcTemplate.update(
                 "DELETE FROM trk_idempotency_record");
+        jdbcTemplate.update("DELETE FROM trk_user_write_fence");
+    }
+
+    @Test
+    void newWriteCannotCreateIdempotencyRecordAfterCancellation() {
+        LocalDateTime now = now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO trk_user_write_fence (
+                    user_id, status, cancellation_id, completed_at,
+                    create_time, update_time
+                ) VALUES (?, 'CANCELLED', '9001', ?, ?, ?)
+                """,
+                USER_ID,
+                now,
+                now,
+                now);
+
+        assertThatThrownBy(() -> execute(
+                UUID.randomUUID().toString(),
+                REQUEST_HASH,
+                () -> new TestResult("unexpected")))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.code())
+                                .isEqualTo("VAL_STATE_CONFLICT"));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM trk_idempotency_record",
+                Long.class)).isZero();
     }
 
     @Test

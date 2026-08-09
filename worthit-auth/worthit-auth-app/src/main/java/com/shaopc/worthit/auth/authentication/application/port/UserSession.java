@@ -24,4 +24,11 @@ public interface UserSession {
      * 注销当前登录态。
      */
     void logout();
+
+    /**
+     * 撤销指定用户的全部登录会话。
+     *
+     * @param userId 内部用户标识
+     */
+    void logoutUser(long userId);
 }

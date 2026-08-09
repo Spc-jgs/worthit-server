@@ -29,6 +29,11 @@ public interface AuthUserRepository {
     Optional<AuthUser> findById(long userId);
 
     /**
+     * 按内部标识锁定用户，用于会话签发与注销 claim 线性化。
+     */
+    Optional<AuthUser> findByIdForUpdate(long userId);
+
+    /**
      * 原子创建内部用户及其微信身份。
      *
      * @param identity 微信身份
