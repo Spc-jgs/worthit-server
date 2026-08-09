@@ -95,10 +95,30 @@ compare_source \
   worthit-auth/worthit-auth-app \
   V1__init_auth.sql
 compare_source \
+  auth \
+  worthit-auth/worthit-auth-app \
+  V2__add_password_credential.sql
+compare_source \
+  auth \
+  worthit-auth/worthit-auth-app \
+  V3__add_account_cancellation_execution.sql
+compare_source \
   tracking \
   worthit-tracking/worthit-tracking-app \
   V1__init_tracking.sql
 compare_source \
+  tracking_m2 \
+  worthit-tracking/worthit-tracking-app \
+  V2__add_item_lifecycle.sql
+compare_source \
+  tracking \
+  worthit-tracking/worthit-tracking-app \
+  V3__add_user_write_fence.sql
+compare_source \
   reminder \
   worthit-reminder/worthit-reminder-app \
   V1__init_reminder.sql
+compare_source \
+  reminder \
+  worthit-reminder/worthit-reminder-app \
+  V2__add_user_write_fence.sql

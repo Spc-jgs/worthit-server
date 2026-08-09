@@ -106,7 +106,8 @@ class AuthenticationServiceTest {
                 code -> WECHAT_IDENTITY,
                 new WechatUserRegistrationServiceImpl(repository),
                 repository,
-                session);
+                session,
+                new LoginTokenIssuer(repository, session));
     }
 
     private AuthUser activeUser() {
@@ -129,6 +130,11 @@ class AuthenticationServiceTest {
         @Override
         public Optional<AuthUser> findById(long userId) {
             return Optional.ofNullable(users.get(userId));
+        }
+
+        @Override
+        public Optional<AuthUser> findByIdForUpdate(long userId) {
+            return findById(userId);
         }
 
         @Override
@@ -168,6 +174,13 @@ class AuthenticationServiceTest {
         @Override
         public void logout() {
             logoutCount++;
+        }
+
+        @Override
+        public void logoutUser(long userId) {
+            if (loggedInUserId == userId) {
+                loggedInUserId = 0L;
+            }
         }
     }
 }

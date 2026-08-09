@@ -2,6 +2,7 @@ package com.shaopc.worthit.reminder.app.dataexport.infrastructure.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shaopc.worthit.reminder.app.WorthItReminderApplication;
+import com.shaopc.worthit.reminder.app.accountcancellation.application.ReminderAccountCancellationService;
 import com.shaopc.worthit.reminder.app.dataexport.application.ReminderDataExportService;
 import com.shaopc.worthit.reminder.client.response.ReminderDataExportResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,9 @@ class ReminderDataExportPersistenceIntegrationTest {
     private ReminderDataExportService service;
 
     @Autowired
+    private ReminderAccountCancellationService cancellationService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -71,6 +75,50 @@ class ReminderDataExportPersistenceIntegrationTest {
         jdbcTemplate.update("DELETE FROM rem_command_log");
         jdbcTemplate.update("DELETE FROM rem_instance");
         jdbcTemplate.update("DELETE FROM rem_binding");
+        jdbcTemplate.update("DELETE FROM rem_user_write_fence");
+    }
+
+    @Test
+    void accountCancellationDeletesOwnedReminderRowsAndKeepsOtherUser() {
+        insertBinding(101L, USER_ID, 1L, 77L);
+        insertBinding(199L, 2002L, 9L, 99L);
+        insertInstance(201L, 101L, USER_ID, "PENDING", false);
+        insertInstance(299L, 199L, 2002L, "PENDING", false);
+        jdbcTemplate.update(
+                """
+                INSERT INTO rem_command_log (
+                    id, event_id, binding_id, source_version,
+                    schema_version, payload_digest, operation_type,
+                    result_code, conflict_count, create_time, update_time
+                ) VALUES (
+                    301, 'event-301', 101, 77, 1, ?,
+                    'INITIAL_SYNC', 'APPLIED', 0, ?, ?)
+                """,
+                "a".repeat(64),
+                NOW,
+                NOW);
+
+        assertThat(cancellationService.cancel(USER_ID, "9001").completed())
+                .isTrue();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM rem_command_log",
+                Long.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM rem_instance WHERE user_id = ?",
+                Long.class,
+                USER_ID)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM rem_binding WHERE user_id = ?",
+                Long.class,
+                USER_ID)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM rem_binding WHERE user_id = 2002",
+                Long.class)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM rem_user_write_fence WHERE user_id = ?",
+                String.class,
+                USER_ID)).isEqualTo("CANCELLED");
     }
 
     @Test
@@ -108,6 +156,18 @@ class ReminderDataExportPersistenceIntegrationTest {
         var publicDocument = getOpenApi("/v3/api-docs/public");
         var internalDocument = getOpenApi("/v3/api-docs/internal");
         String path = "/internal/v1/reminders/users/{userId}/data-export";
+
+        assertThat(publicDocument.path("paths").has(path)).isFalse();
+        assertThat(internalDocument.path("paths").has(path)).isTrue();
+    }
+
+    @Test
+    void publishesAccountCancellationOnlyInInternalOpenApiGroup()
+            throws Exception {
+        var publicDocument = getOpenApi("/v3/api-docs/public");
+        var internalDocument = getOpenApi("/v3/api-docs/internal");
+        String path =
+                "/internal/v1/reminders/users/{userId}/account-cancellation";
 
         assertThat(publicDocument.path("paths").has(path)).isFalse();
         assertThat(internalDocument.path("paths").has(path)).isTrue();

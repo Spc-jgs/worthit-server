@@ -7,7 +7,9 @@ import com.shaopc.worthit.common.http.context.InternalRequestContext;
 import com.shaopc.worthit.common.http.trace.TraceIdProvider;
 import com.shaopc.worthit.common.security.sametoken.SameTokenProvider;
 import com.shaopc.worthit.reminder.client.api.ReminderDataExportClient;
+import com.shaopc.worthit.reminder.client.api.ReminderAccountCancellationClient;
 import com.shaopc.worthit.tracking.client.api.TrackingDataExportClient;
+import com.shaopc.worthit.tracking.client.api.TrackingAccountCancellationClient;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -69,6 +71,44 @@ public class DataExportClientConfiguration {
             TraceIdProvider traceIdProvider) {
         return factory.create(
                 ReminderDataExportClient.class,
+                "worthit-reminder",
+                URI.create("http://" + properties.serviceId()),
+                builder,
+                new HttpClientTimeouts(
+                        properties.connectTimeout(), properties.readTimeout()),
+                new InternalRequestContext(
+                        CALLER_SERVICE, sameTokenProvider, traceIdProvider));
+    }
+
+    /** 创建 Tracking 账号注销清理 Client。 */
+    @Bean
+    TrackingAccountCancellationClient trackingAccountCancellationClient(
+            HttpServiceClientFactory factory,
+            @LoadBalanced RestClient.Builder builder,
+            TrackingDataExportClientProperties properties,
+            SameTokenProvider sameTokenProvider,
+            TraceIdProvider traceIdProvider) {
+        return factory.create(
+                TrackingAccountCancellationClient.class,
+                "worthit-tracking",
+                URI.create("http://" + properties.serviceId()),
+                builder,
+                new HttpClientTimeouts(
+                        properties.connectTimeout(), properties.readTimeout()),
+                new InternalRequestContext(
+                        CALLER_SERVICE, sameTokenProvider, traceIdProvider));
+    }
+
+    /** 创建 Reminder 账号注销清理 Client。 */
+    @Bean
+    ReminderAccountCancellationClient reminderAccountCancellationClient(
+            HttpServiceClientFactory factory,
+            @LoadBalanced RestClient.Builder builder,
+            ReminderDataExportClientProperties properties,
+            SameTokenProvider sameTokenProvider,
+            TraceIdProvider traceIdProvider) {
+        return factory.create(
+                ReminderAccountCancellationClient.class,
                 "worthit-reminder",
                 URI.create("http://" + properties.serviceId()),
                 builder,

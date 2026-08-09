@@ -1,4 +1,9 @@
 # SHA-256 service runtime-path
 d9f1102b019700479105a43922215aaf480ae12d6b0cf0fd85f7c111f4dea595 auth worthit-auth/worthit-auth-app/src/main/resources/db/migration/V1__init_auth.sql
+3bf8807aaa6d8ac44f5b6fc16bcf29e6d9c68775e2b8165194e991e00aca43b1 auth worthit-auth/worthit-auth-app/src/main/resources/db/migration/V2__add_password_credential.sql
+9cf1ee28c2ad17b1995b708475395e6632791392de9d143fb8843865adc46617 auth worthit-auth/worthit-auth-app/src/main/resources/db/migration/V3__add_account_cancellation_execution.sql
 f17833bd0b20b8266af5a074ac703f68c8cdca655e988ff9ea298f98af76b845 tracking worthit-tracking/worthit-tracking-app/src/main/resources/db/migration/V1__init_tracking.sql
+5d6c4ea820476006f49007b4462c250b7de913b7559a044f3da206a1542f1ea2 tracking_m2 worthit-tracking/worthit-tracking-app/src/main/resources/db/migration/V2__add_item_lifecycle.sql
+a3fb5ea0da587bb92b0e623b92f4ff44c5d84ef64703a7ea43a474c4fa9b5b3f tracking worthit-tracking/worthit-tracking-app/src/main/resources/db/migration/V3__add_user_write_fence.sql
 f90e532349dde300079a85b7477b1bd2f8c91266f137f67817136e885ab12282 reminder worthit-reminder/worthit-reminder-app/src/main/resources/db/migration/V1__init_reminder.sql
+cac7988a8ea3eed6d441af08b9ec6f2cebb05adfd9634d6df80db51eb48e8290 reminder worthit-reminder/worthit-reminder-app/src/main/resources/db/migration/V2__add_user_write_fence.sql

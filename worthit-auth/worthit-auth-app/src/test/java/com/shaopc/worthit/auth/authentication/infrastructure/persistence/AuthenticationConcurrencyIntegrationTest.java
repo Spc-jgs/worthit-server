@@ -181,6 +181,10 @@ class AuthenticationConcurrencyIntegrationTest {
                 @Override
                 public void logout() {
                 }
+
+                @Override
+                public void logoutUser(long userId) {
+                }
             };
         }
     }

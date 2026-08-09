@@ -1,9 +1,7 @@
 package com.shaopc.worthit.auth.authentication.application;
 
-import com.shaopc.worthit.auth.authentication.application.port.IssuedToken;
 import com.shaopc.worthit.auth.authentication.application.port.PasswordCredentialRepository;
 import com.shaopc.worthit.auth.authentication.application.port.PasswordHasher;
-import com.shaopc.worthit.auth.authentication.application.port.UserSession;
 import com.shaopc.worthit.auth.authentication.domain.AuthUser;
 import com.shaopc.worthit.auth.authentication.domain.PasswordCredential;
 import com.shaopc.worthit.auth.authentication.domain.UsernameNormalizer;
@@ -25,16 +23,16 @@ public class PasswordAuthenticationServiceImpl
 
     private final PasswordCredentialRepository credentialRepository;
     private final PasswordHasher passwordHasher;
-    private final UserSession userSession;
+    private final LoginTokenIssuer tokenIssuer;
     private final String dummyPasswordHash;
 
     public PasswordAuthenticationServiceImpl(
             PasswordCredentialRepository credentialRepository,
             PasswordHasher passwordHasher,
-            UserSession userSession) {
+            LoginTokenIssuer tokenIssuer) {
         this.credentialRepository = credentialRepository;
         this.passwordHasher = passwordHasher;
-        this.userSession = userSession;
+        this.tokenIssuer = tokenIssuer;
         this.dummyPasswordHash = passwordHasher.encode(DUMMY_PASSWORD);
     }
 
@@ -58,11 +56,6 @@ public class PasswordAuthenticationServiceImpl
         }
 
         AuthUser user = credential.orElseThrow().user();
-        if (!user.active()) {
-            throw new BusinessException(
-                    SecurityErrorCode.AUTH_FORBIDDEN);
-        }
-        IssuedToken token = userSession.login(user.id());
-        return new AuthenticationResult(token, user, false);
+        return tokenIssuer.issue(user.id(), false);
     }
 }

@@ -27,7 +27,7 @@ class TrackingFlywayMigrationTest {
             new MySQLContainer<>("mysql:8.4");
 
     @Test
-    void upgradesVersionOneToM2LifecycleOnMysql84()
+    void upgradesVersionOneToM3AccountCancellationFenceOnMysql84()
             throws SQLException {
         Flyway versionOne = Flyway.configure()
                 .dataSource(
@@ -59,11 +59,12 @@ class TrackingFlywayMigrationTest {
 
         assertThat(versionTwoResult.success).isTrue();
         assertThat(versionTwoResult.targetSchemaVersion)
-                .hasToString("2");
+                .hasToString("3");
         assertThat(versionTwoResult.migrationsExecuted)
-                .isEqualTo(1);
+                .isEqualTo(2);
         assertThat(tableExists("trk_item_disposal")).isTrue();
         assertThat(tableExists("trk_item_replacement")).isTrue();
+        assertThat(tableExists("trk_user_write_fence")).isTrue();
         assertThat(sourceWishUniqueIndexColumnCount()).isEqualTo(1);
 
         insertDisposal(

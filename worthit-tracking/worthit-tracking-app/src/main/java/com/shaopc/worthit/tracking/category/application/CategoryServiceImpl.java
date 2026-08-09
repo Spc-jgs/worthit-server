@@ -2,6 +2,7 @@ package com.shaopc.worthit.tracking.category.application;
 
 import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.web.error.CommonWebErrorCode;
+import com.shaopc.worthit.tracking.accountcancellation.application.TrackingUserWriteFence;
 import com.shaopc.worthit.tracking.category.domain.Category;
 import com.shaopc.worthit.tracking.category.domain.CategoryErrorCode;
 import com.shaopc.worthit.tracking.category.domain.CategoryRepository;
@@ -24,6 +25,7 @@ import java.util.List;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final TrackingUserWriteFence userWriteFence;
     private final CurrentUserProvider currentUserProvider;
     private final RestoreWindowPolicy restoreWindowPolicy;
     private final Clock trackingClock;
@@ -49,9 +51,11 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public Category create(String name) {
         String normalizedName = name.trim();
+        long userId = currentUserId();
+        userWriteFence.requireActive(userId);
         try {
             return categoryRepository.create(
-                    currentUserId(), normalizedName);
+                    userId, normalizedName);
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(
                     CategoryErrorCode.BIZ_CONFLICT,
@@ -71,6 +75,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public Category rename(long categoryId, String name) {
         long userId = currentUserId();
+        userWriteFence.requireActive(userId);
         Category category = categoryRepository
                 .findByIdAndUserIdForUpdate(categoryId, userId)
                 .orElseThrow(() -> new BusinessException(
@@ -103,6 +108,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public void delete(long categoryId) {
         long userId = currentUserId();
+        userWriteFence.requireActive(userId);
         Category category = categoryRepository
                 .findByIdAndUserIdForUpdate(categoryId, userId)
                 .orElseThrow(() -> new BusinessException(

@@ -3,6 +3,7 @@ package com.shaopc.worthit.tracking.idempotency.infrastructure;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shaopc.worthit.tracking.accountcancellation.application.TrackingUserWriteFence;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyExecutionClaim;
 import com.shaopc.worthit.tracking.idempotency.application.IdempotencyExecutionStore;
 import com.shaopc.worthit.tracking.idempotency.application.TrackingOperation;
@@ -32,6 +33,7 @@ public class MybatisIdempotencyExecutionStore
     private final IdempotencyMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock trackingClock;
+    private final TrackingUserWriteFence userWriteFence;
 
     @Override
     public <T> IdempotencyExecutionClaim<T> claim(
@@ -40,6 +42,11 @@ public class MybatisIdempotencyExecutionStore
             String idempotencyKey,
             String requestHash,
             Class<T> responseType) {
+        boolean existing = mapper.selectExistingId(
+                userId, operation.code(), idempotencyKey) != null;
+        if (!existing) {
+            userWriteFence.requireActive(userId);
+        }
         LocalDateTime now = databaseTime();
         LocalDateTime newLease =
                 now.plus(PROCESSING_TIMEOUT);
@@ -50,9 +57,15 @@ public class MybatisIdempotencyExecutionStore
                 requestHash,
                 now,
                 newLease);
-        int inserted = mapper.insertClaim(candidate);
+        mapper.insertClaim(candidate);
         IdempotencyDO locked = mapper.selectForUpdate(
                 userId, operation.code(), idempotencyKey);
+        if (locked == null && existing) {
+            userWriteFence.requireActive(userId);
+            mapper.insertClaim(candidate);
+            locked = mapper.selectForUpdate(
+                    userId, operation.code(), idempotencyKey);
+        }
         if (locked == null) {
             throw new IllegalStateException(
                     "幂等占位写入后记录不存在");
@@ -61,7 +74,7 @@ public class MybatisIdempotencyExecutionStore
             return claim(
                     IdempotencyExecutionClaim.Status.CONFLICT);
         }
-        if (inserted == 1) {
+        if (candidate.getId().equals(locked.getId())) {
             return new IdempotencyExecutionClaim<>(
                     IdempotencyExecutionClaim.Status.NEW,
                     null,

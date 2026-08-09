@@ -22,8 +22,8 @@ MySQL、Redis、Nacos、服务发现、Same-Token 和动态配置刷新验收。
 提交到 WorthIt。禁止 `docker compose down -v`、prune、删除卷和清空持久化目录。
 先记录 `docker compose ps`；任务开始前已经运行的容器不属于本任务，不能停止。
 
-2026-07-25 本轮验收开始时 `dev-stack-mysql`、`dev-stack-redis` 和
-`dev-stack-nacos` 已经运行，因此本轮未启动、重建或停止这些容器。
+每轮验收都必须重新记录开始时的容器状态；旧验收记录不能作为当前任务是否启动、重建或
+停止容器的依据。
 
 ## 必需环境变量
 
@@ -93,8 +93,8 @@ curl --fail-with-body \
 unset WORTHIT_MYSQL_ADMIN_PASSWORD
 ```
 
-数据库表不由管理员脚本创建。Auth 启动时由 Flyway 执行 V1、V2，Tracking 和
-Reminder 分别执行 V1。
+数据库表不由管理员脚本创建。Auth 启动时由 Flyway 执行至 V3，Tracking 执行至 V3，
+Reminder 执行至 V2。
 
 ### 3. 同步 Nacos 配置
 
@@ -174,7 +174,7 @@ bash scripts/verify-flyway-source-parity.sh
 `verify.sh` 必须完整通过，不能通过缺省变量或空成功跳过。它验证：
 
 - Nacos 服务端与控制台 readiness；
-- Auth Flyway V1/V2、Tracking 和 Reminder Flyway V1；
+- Auth Flyway V3、Tracking Flyway V3、Reminder Flyway V2；
 - Redis PING 及 WorthIt Sa-Token key 存在，始终隐藏 value；
 - 四服务 liveness/readiness；
 - Nacos 中四个健康实例和端口；
@@ -207,6 +207,26 @@ Wish，验证统一已删除列表、类型筛选、字符串 ID 和用户隔离
 恢复窗口结束，删除原自定义分类，再以 UUID 幂等键执行长期恢复，验证三类对象均回落
 系统“未分类”、同键重放、旧版本冲突和恢复后列表移除。脚本只操作本轮唯一命名对象，
 不读取数据库、不启动或停止中间件；正常结束时通过公网再次逻辑删除本轮对象。
+
+### M3 账号注销故障恢复验收
+
+账号注销验收必须使用两个本轮专用本地账号，并经 Gateway 覆盖申请、查询、同键重放、
+不同键单开放记录、本人撤销、跨用户 `404` 隔离和撤销后再次申请。两个账号都应先通过
+公网创建能收敛到 Tracking 与 Reminder 的业务数据，记录次账号三库基线计数。
+
+七天冷静期只允许在隔离本地账号上通过 Auth 数据库把本轮新申请调整为到期夹具；仓库不
+提供生产改时钟接口。故障恢复步骤为：
+
+1. 先停止本轮启动的 Reminder 应用进程，再把申请调整为到期；
+2. 等待 Auth 进入持久化 `EXECUTING`，验证 Tracking 已物理清理且围栏为
+   `CANCELLED`，Auth 不得提前完成；
+3. 验证该用户所有历史 Token 均为 `401`，新密码登录被拒绝；
+4. 使用相同配置恢复 Reminder，等待 Auth 自动重试并进入 `COMPLETED`；
+5. 验证 Auth 身份、凭证、登录审计和幂等记录已删除，仅保留最小完成记录；Tracking、
+   Reminder 本人业务数据归零且围栏长期保持 `CANCELLED`；
+6. 验证次账号计数与登录均不变，并扫描四服务日志确认没有 Secret 或业务正文泄漏。
+
+该流程验证的是正常业务迁移和运行时闭环，不包含既有 Flyway/MySQL 兼容警告治理。
 
 ### 受控并发
 

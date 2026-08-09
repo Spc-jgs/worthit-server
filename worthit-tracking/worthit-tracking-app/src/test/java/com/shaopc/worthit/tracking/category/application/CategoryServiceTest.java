@@ -37,6 +37,7 @@ class CategoryServiceTest {
         repository = new InMemoryCategoryRepository();
         service = new CategoryServiceImpl(
                 repository,
+                userId -> { },
                 () -> new UserContext(USER_ID),
                 new RestoreWindowPolicy(),
                 Clock.fixed(

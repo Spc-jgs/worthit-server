@@ -1,11 +1,13 @@
 package com.shaopc.worthit.auth.authentication.application;
 
+import com.shaopc.worthit.auth.authentication.application.port.AuthUserRepository;
 import com.shaopc.worthit.auth.authentication.application.port.IssuedToken;
 import com.shaopc.worthit.auth.authentication.application.port.PasswordCredentialRepository;
 import com.shaopc.worthit.auth.authentication.application.port.PasswordHasher;
 import com.shaopc.worthit.auth.authentication.application.port.UserSession;
 import com.shaopc.worthit.auth.authentication.domain.AuthUser;
 import com.shaopc.worthit.auth.authentication.domain.PasswordCredential;
+import com.shaopc.worthit.auth.authentication.domain.WechatIdentity;
 import com.shaopc.worthit.common.core.error.BusinessException;
 import com.shaopc.worthit.common.security.error.SecurityErrorCode;
 import org.junit.jupiter.api.Test;
@@ -26,7 +28,9 @@ class PasswordAuthenticationServiceTest {
         FakeUserSession session = new FakeUserSession();
         PasswordAuthenticationService service =
                 new PasswordAuthenticationServiceImpl(
-                        repository, new FakePasswordHasher(), session);
+                        repository,
+                        new FakePasswordHasher(),
+                        issuer(activeUser(), session));
 
         AuthenticationResult result = service.login(
                 new PasswordLoginCommand(
@@ -46,7 +50,9 @@ class PasswordAuthenticationServiceTest {
         FakePasswordHasher hasher = new FakePasswordHasher();
         PasswordAuthenticationService service =
                 new PasswordAuthenticationServiceImpl(
-                        repository, hasher, new FakeUserSession());
+                        repository,
+                        hasher,
+                        issuer(activeUser(), new FakeUserSession()));
 
         assertUnauthorized(() -> service.login(
                 new PasswordLoginCommand("missing", "wrong-password")));
@@ -68,7 +74,11 @@ class PasswordAuthenticationServiceTest {
         FakeUserSession session = new FakeUserSession();
         PasswordAuthenticationService service =
                 new PasswordAuthenticationServiceImpl(
-                        repository, new FakePasswordHasher(), session);
+                        repository,
+                        new FakePasswordHasher(),
+                        issuer(
+                                new AuthUser(1001L, null, null, false),
+                                session));
 
         assertThatThrownBy(() -> service.login(
                 new PasswordLoginCommand(
@@ -89,6 +99,10 @@ class PasswordAuthenticationServiceTest {
 
     private AuthUser activeUser() {
         return new AuthUser(1001L, "本地用户", null, true);
+    }
+
+    private LoginTokenIssuer issuer(AuthUser user, FakeUserSession session) {
+        return new LoginTokenIssuer(new SingleUserRepository(user), session);
     }
 
     @FunctionalInterface
@@ -117,6 +131,37 @@ class PasswordAuthenticationServiceTest {
         @Override
         public AuthUser createAccount(
                 String username, String passwordHash, String nickname) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static final class SingleUserRepository
+            implements AuthUserRepository {
+
+        private final AuthUser user;
+
+        private SingleUserRepository(AuthUser user) {
+            this.user = user;
+        }
+
+        @Override
+        public Optional<AuthUser> findByWechatIdentity(
+                String appId, String externalSubject) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<AuthUser> findById(long userId) {
+            return user.id() == userId ? Optional.of(user) : Optional.empty();
+        }
+
+        @Override
+        public Optional<AuthUser> findByIdForUpdate(long userId) {
+            return findById(userId);
+        }
+
+        @Override
+        public AuthUser createWechatUser(WechatIdentity identity) {
             throw new UnsupportedOperationException();
         }
     }
@@ -155,6 +200,13 @@ class PasswordAuthenticationServiceTest {
 
         @Override
         public void logout() {
+        }
+
+        @Override
+        public void logoutUser(long userId) {
+            if (loggedInUserId == userId) {
+                loggedInUserId = 0L;
+            }
         }
     }
 }

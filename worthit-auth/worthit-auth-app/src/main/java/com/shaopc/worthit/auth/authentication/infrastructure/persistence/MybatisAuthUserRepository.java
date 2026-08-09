@@ -58,6 +58,12 @@ public class MybatisAuthUserRepository implements
     }
 
     @Override
+    public Optional<AuthUser> findByIdForUpdate(long userId) {
+        return Optional.ofNullable(userMapper.selectByIdForUpdate(userId))
+                .map(this::toDomain);
+    }
+
+    @Override
     public AuthUser createWechatUser(WechatIdentity identity) {
         LocalDateTime now = LocalDateTime.now(clock);
         AuthUserDO user = new AuthUserDO();

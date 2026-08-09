@@ -1,7 +1,6 @@
 package com.shaopc.worthit.auth.authentication.application;
 
 import com.shaopc.worthit.auth.authentication.application.port.AuthUserRepository;
-import com.shaopc.worthit.auth.authentication.application.port.IssuedToken;
 import com.shaopc.worthit.auth.authentication.application.port.UserSession;
 import com.shaopc.worthit.auth.authentication.application.port.WechatCodeExchange;
 import com.shaopc.worthit.auth.authentication.domain.AuthUser;
@@ -24,6 +23,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final WechatUserRegistrationService registrationService;
     private final AuthUserRepository userRepository;
     private final UserSession userSession;
+    private final LoginTokenIssuer tokenIssuer;
 
     /**
      * 使用微信一次性 code 登录。
@@ -35,10 +35,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public AuthenticationResult login(WechatLoginCommand command) {
         WechatIdentity identity = wechatCodeExchange.exchange(command.code());
         UserRegistration registration = registerOrReload(identity);
-        ensureActive(registration.user());
-        IssuedToken token = userSession.login(registration.user().id());
-        return new AuthenticationResult(
-                token, registration.user(), registration.newUser());
+        return tokenIssuer.issue(
+                registration.user().id(), registration.newUser());
     }
 
     /**
